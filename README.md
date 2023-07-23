@@ -3,4 +3,5 @@
 ## TODO
 
 -   IOS: get a key by some id?
+    -   `SecItemCopyMatching` seems to be required for that which is not available in `security-framework` and it is currently also without author
 -   Android: everything
