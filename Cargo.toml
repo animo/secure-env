@@ -1,26 +1,2 @@
-[package]
-name = "mobile-hsm-rs"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-name = "mobilehsm"
-crate-type = ["cdylib"]
-
-[features]
-default=["ios"]
-ios=["security-framework", "core-foundation"]
-
-[dependencies]
-askar-crypto = "0.2.5"
-p256 = { version = "0.13.2", features = ["ecdsa-core"] }
-sha2 = "*"
-
-[dependencies.core-foundation]
-version = "0.9.3"
-optional = true
-
-[dependencies.security-framework]
-version = "2.9.2"
-features = ["OSX_10_12"]
-optional = true
+[workspace]
+members = ["crates/*"]

@@ -1,0 +1,21 @@
+[package]
+name = "secure-env"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "secureenv"
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+security-framework = { version = "2.9.2", features = ["OSX_10_12"] }
+askar-crypto = "0.2.5"
+p256 = { version = "0.13.2", features = ["ecdsa-core"] }
+sha2 = { version = "0.10.7", default-features = false }
+
+[dependencies]
+android-activity = { version = "0.4.2", features = ["native-activity"] }
+android_logger = "0.13.1"
+jni = { version = "0.21.1", features = ["invocation"] }
+log = "0.4.19"
+ndk-context = "0.1.1"

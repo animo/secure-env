@@ -1,0 +1,16 @@
+[package]
+name = "example-android"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "example_android"
+crate-type = ["cdylib"]
+
+[dependencies]
+secure-env = { path = "../secure-env/" }
+android-activity = { version = "0.4.2", features = ["native-activity"] }
+android_logger = "0.13.1"
+jni = { version = "0.21.1", features = ["invocation"] }
+log = "0.4.19"
+ndk-context = "0.1.1"
