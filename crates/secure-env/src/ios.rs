@@ -4,17 +4,13 @@ use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, To
 use crate::common_hsm::CommonHsm;
 
 #[derive(Debug)]
-pub struct Ios(pub(crate) SecKey);
+pub struct Key(SecKey);
 
-impl Ios {
-    pub fn new(store_in_secure_enclave: bool) -> Self {
+impl Key {
+    pub fn new() -> Self {
         let mut opts = GenerateKeyOptions::default();
         opts.set_key_type(KeyType::ec());
-        if store_in_secure_enclave {
-            opts.set_token(Token::SecureEnclave);
-        } else {
-            opts.set_token(Token::Software);
-        }
+        opts.set_token(Token::SecureEnclave);
         opts.set_label("some-app");
         let key = SecKey::generate(opts.to_dictionary()).unwrap();
         Self(key)
@@ -39,7 +35,7 @@ impl Ios {
     }
 }
 
-impl CommonHsm for Ios {
+impl CommonHsm for Key {
     fn sign(&self, message: &[u8]) -> Vec<u8> {
         let der_sig = self
             .0

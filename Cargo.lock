@@ -561,6 +561,7 @@ dependencies = [
  "android-activity",
  "android_logger",
  "jni",
+ "lazy_static",
  "log",
  "ndk-context",
  "secure-env",
@@ -1103,10 +1104,9 @@ name = "secure-env"
 version = "0.1.0"
 dependencies = [
  "android-activity",
- "android_logger",
  "askar-crypto",
  "jni",
- "log",
+ "lazy_static",
  "ndk-context",
  "p256 0.13.2",
  "security-framework",

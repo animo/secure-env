@@ -1,85 +1,57 @@
-use jni::{
-    objects::{JClass, JString, JValue},
-    signature::ReturnType,
-    sys::{self, jint},
-    AttachGuard, InitArgsBuilder, JNIVersion, JavaVM,
-};
+use jni::objects::JValue;
 
-use crate::common_hsm::CommonHsm;
+lazy_static::lazy_static! {
+    pub static ref JAVA_VM: jni::JavaVM =
+        unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
+}
 
-#[derive(Debug)]
-pub struct Android;
+enum JavaClass {
+    KeyPairGeneratorGetInstance,
+    KeyPairGeneratorGenerateKeyPair,
+}
 
-impl CommonHsm for Android {
-    fn sign(&self, msg: &[u8]) -> Vec<u8> {
-        todo!()
-    }
+impl Into<(String, String, String)> for JavaClass {
+    fn into(self) -> (String, String, String) {
+        let items = match self {
+            JavaClass::KeyPairGeneratorGetInstance => (
+                "java/security/KeyPairGenerator",
+                "getInstance",
+                "(Ljava/lang/String;)Ljava/security/KeyPairGenerator;",
+            ),
+            JavaClass::KeyPairGeneratorGenerateKeyPair => (
+                "java/security/KeyPairGenerator",
+                "generateKeyPair",
+                "()Ljava/security/KeyPair;",
+            ),
+        };
 
-    fn to_public_key(&self) -> Vec<u8> {
-        todo!()
+        (items.0.to_owned(), items.1.to_owned(), items.2.to_owned())
     }
 }
 
-impl Android {
-    pub fn new(vm: JavaVM) -> Self {
-        let mut env = vm.attach_current_thread().unwrap();
+#[derive(Debug)]
+pub struct Key;
+
+impl Key {
+    pub fn generate() -> Self {
+        let mut env = JAVA_VM.attach_current_thread().unwrap();
         let b = env.new_string("EC").unwrap();
         let p = JValue::Object(&b);
-        let cls = env.find_class("java/security/KeyPairGenerator").unwrap();
-        let res = env
-            .call_static_method(
-                cls,
-                "getInstance",
-                "(Ljava/lang/String;)Ljava/security/KeyPairGenerator;",
-                &[p],
-            )
-            .unwrap();
-        let res = res.l().unwrap();
 
-        let res = env
-            .call_method(
-                &res,
-                "generateKeyPair",
-                "()Ljava/security/KeyPair;",
-                &[]
-            )
-            .unwrap();
-        let res = res.l().unwrap();
+        // TODO: macro potential
+        let (c, f, s) = JavaClass::KeyPairGeneratorGetInstance.into();
+        let result = env.call_static_method(c, f, s, &[p]).unwrap();
+        let result = result.l().unwrap();
 
-        let res = env
-            .call_method(
-                &res,
-                "getPublic",
-                "()Ljava/security/PublicKey;",
-                &[]
-            )
-            .unwrap();
-        let res = res.l().unwrap();
-
-        let res = env
-            .call_method(
-                &res,
-                "getAlgorithm",
-                "()Ljava/lang/String;",
-                &[]
-            )
-            .unwrap();
-        let res = JString::from(res.l().unwrap());
-        let res = env.get_string(&res).unwrap();
-        let res = res.to_str().unwrap();
-
-        println!("{res:?}");
+        let (_, f, s) = JavaClass::KeyPairGeneratorGenerateKeyPair.into();
+        let result = env.call_method(result, f, s, &[]).unwrap();
+        let result = result.l().unwrap();
+        println!("Created key!");
 
         Self
     }
-}
 
-// println!("key_pair_generator: {key_pair_generator:?}");
-//let method = env
-//    .get_static_method_id(
-//        "java/security/KeyPairGenerator",
-//        "getInstance",
-//        "(Ljava/lang/String;)Ljava/security/KeyPairGenerator",
-//    )
-//    .unwrap();
-// println!("method: {method:?}");
+    pub fn to_public_bytes(&self) -> Vec<u8> {
+        vec![]
+    }
+}
