@@ -1,5 +1,5 @@
 [package]
-name = "example-android"
+name = "android"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,10 +8,10 @@ name = "example_android"
 crate-type = ["cdylib"]
 
 [dependencies]
-secure-env = { path = "../secure-env/" }
-android-activity = { version = "0.4.2", features = ["native-activity"] }
-android_logger = "0.13.1"
+secure-env = { path = ".." }
+android-activity = { version = "0.5.0", features = ["native-activity"] }
+android_logger = "0.13.2"
 jni = { version = "0.21.1", features = ["invocation"] }
-log = "0.4.19"
+log = "0.4.20"
 ndk-context = "0.1.1"
 lazy_static = "1.4.0"
