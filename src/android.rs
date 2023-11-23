@@ -1,4 +1,10 @@
-use jni::objects::JValue;
+use std::sync::{Arc, Mutex};
+
+use crate::error::{Error, Result};
+use jni::{
+    objects::{JObject, JValue},
+    AttachGuard, JNIEnv,
+};
 
 lazy_static::lazy_static! {
     pub static ref JAVA_VM: jni::JavaVM =
@@ -8,6 +14,31 @@ lazy_static::lazy_static! {
 enum JavaClass {
     KeyPairGeneratorGetInstance,
     KeyPairGeneratorGenerateKeyPair,
+}
+
+fn call_jni_static<'a>(
+    env: &'a mut JNIEnv<'a>,
+    token: JavaClass,
+    args: &'a [JValue<'a, 'a>],
+) -> Result<JObject<'a>> {
+    let (c, f, s) = token.into();
+    let result = env.call_static_method(c, f, s, args).unwrap();
+    let result = result.l().unwrap();
+
+    Ok(result)
+}
+
+fn call_jni<'a>(
+    env: &'a mut JNIEnv<'a>,
+    token: JavaClass,
+    class: JObject<'a>,
+    args: &'a [JValue<'a, 'a>],
+) -> Result<JObject<'a>> {
+    let (_, f, s) = token.into();
+    let result = env.call_method(class, f, s, args).unwrap();
+    let result = result.l().unwrap();
+
+    Ok(result)
 }
 
 impl Into<(String, String, String)> for JavaClass {
@@ -30,25 +61,47 @@ impl Into<(String, String, String)> for JavaClass {
 }
 
 #[derive(Debug)]
-pub struct Key;
+pub struct Key(Arc<Mutex<JNIEnv<'static>>>);
 
 impl Key {
-    pub fn generate() -> Self {
-        let mut env = JAVA_VM.attach_current_thread().unwrap();
-        let b = env.new_string("EC").unwrap();
-        let p = JValue::Object(&b);
+    pub fn new() -> Result<Self> {
+        let env = JAVA_VM
+            .attach_current_thread_as_daemon()
+            .map_err(|_| Error::UnableToAttachJVMToThread)?;
+        Ok(Self(Arc::new(Mutex::new(env))))
+    }
 
-        // TODO: macro potential
-        let (c, f, s) = JavaClass::KeyPairGeneratorGetInstance.into();
-        let result = env.call_static_method(c, f, s, &[p]).unwrap();
-        let result = result.l().unwrap();
+    pub fn generate(&mut self) -> Result<()> {
+        let algorithm = self
+            .0
+            .lock()
+            .map_err(|_| Error::UnableToAcquireJNIEnvLock)?
+            .new_string("EC")
+            .map_err(|_| Error::UnableToCreateJavaValue)?;
+        let algorithm = JValue::Object(&algorithm);
 
-        let (_, f, s) = JavaClass::KeyPairGeneratorGenerateKeyPair.into();
-        let result = env.call_method(result, f, s, &[]).unwrap();
-        let result = result.l().unwrap();
-        println!("Created key!");
+        let provider = self
+            .0
+            .lock()
+            .map_err(|_| Error::UnableToAcquireJNIEnvLock)?
+            .new_string("AndroidKeyStore")
+            .map_err(|_| Error::UnableToCreateJavaValue)?;
+        let provider = JValue::Object(&provider);
 
-        Self
+        // let args = [algorithm, provider];
+        // let key_pair_generator = call_jni_static(
+        //     &mut env.lock().unwrap(),
+        //     JavaClass::KeyPairGeneratorGetInstance,
+        //     &args,
+        // )?;
+        // let result = call_jni(
+        //     &mut env.lock().unwrap(),
+        //     JavaClass::KeyPairGeneratorGenerateKeyPair,
+        //     key_pair_generator,
+        //     &[],
+        // )?;
+
+        Ok(())
     }
 
     pub fn to_public_bytes(&self) -> Vec<u8> {

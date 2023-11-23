@@ -1,9 +1,9 @@
 use android_activity::AndroidApp;
 
-#[no_mangle]
-fn android_main(_app: AndroidApp) -> Result<(), Box<dyn std::error::Error>> {
-    let key = secureenv::android::Key::generate();
-    println!("secure environment: {key:#?}",);
+use secure_env::android::Key;
 
-    Ok(())
+#[no_mangle]
+fn android_main(_app: AndroidApp) {
+    let k = Key::new();
+    println!("KEY INSTANCE: {k:?}");
 }

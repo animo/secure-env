@@ -2,13 +2,14 @@
 name = "android"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [lib]
-name = "example_android"
+name = "android"
 crate-type = ["cdylib"]
 
 [dependencies]
-secure-env = { path = ".." }
+secure-env = { path = "../.." }
 android-activity = { version = "0.5.0", features = ["native-activity"] }
 android_logger = "0.13.2"
 jni = { version = "0.21.1", features = ["invocation"] }
