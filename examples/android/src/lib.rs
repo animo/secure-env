@@ -6,6 +6,6 @@ use secure_env::SecureEnvironment;
 #[no_mangle]
 fn android_main(_app: AndroidApp) {
     let mut senv = SecureEnvironment::new().unwrap();
-    //let k = senv.generate_key();
-    //println!("{k:?}");
+    // let k = senv.generate_key();
+    // println!("{k:?}");
 }

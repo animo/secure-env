@@ -1,5 +1,5 @@
-use crate::error::{Error, Result};
-use jni::objects::{JObject, JValueGen};
+use crate::error::Result;
+use jni::objects::{JObject, JValue, JValueGen};
 use jni::JNIEnv;
 
 lazy_static::lazy_static! {
@@ -25,6 +25,87 @@ impl SecureEnvironment {
         )?;
 
         let kpg_instance = key_pair_generator.l()?;
+
+        // ====
+
+        let purpose_sign = env
+            .get_static_field(
+                "android/security/keystore/KeyProperties",
+                "PURPOSE_SIGN",
+                "I",
+            )?
+            .i()?;
+
+        let builder = env.new_object(
+            "android/security/keystore/KeyGenParameterSpec$Builder",
+            "(Ljava/lang/String;I)V",
+            &[
+                (&env.new_string("hi").unwrap()).into(),
+                JValue::from(purpose_sign),
+            ],
+        )?;
+
+        // let digest_sha256 = env
+        //     .get_static_field(
+        //         "android/security/keystore/KeyProperties",
+        //         "DIGEST_SHA256",
+        //         "Ljava/lang/String;",
+        //     )?
+        //     .l()?;
+
+        // let builder = env
+        //     .call_method(
+        //         &builder,
+        //         "setDigests",
+        //         "([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
+        //         &[(&digest_sha256).into()],
+        //     )?
+        //     .l()?;
+
+        let builder = env
+            .call_method(
+                &builder,
+                "setKeySize",
+                "(I)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
+                &[JValue::from(256)],
+            )?
+            .l()?;
+
+        let builder = env
+            .call_method(
+                &builder,
+                "setIsStrongBoxBacked",
+                "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
+                &[JValue::Bool(1)],
+            )?
+            .l()?;
+
+        let builder = env
+            .call_method(
+                &builder,
+                "setUserPresenceRequired",
+                "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
+                &[JValue::Bool(1)],
+            )?
+            .l()?;
+
+        let params = env
+            .call_method(
+                &builder,
+                "build",
+                "()Landroid/security/keystore/KeyGenParameterSpec;",
+                &[],
+            )?
+            .l()?;
+
+        // ====
+
+        env.call_method(
+            &kpg_instance,
+            "initialize",
+            "(Ljava/security/spec/AlgorithmParameterSpec;)V",
+            &[(&params).into()],
+        )?;
 
         Ok(Self(env, kpg_instance))
     }
