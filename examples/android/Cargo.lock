@@ -628,6 +628,7 @@ dependencies = [
  "ndk-context",
  "p256",
  "security-framework",
+ "thiserror",
 ]
 
 [[package]]

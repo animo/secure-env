@@ -928,6 +928,7 @@ dependencies = [
  "p256",
  "security-framework",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]

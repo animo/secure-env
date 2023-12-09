@@ -1,110 +1,41 @@
-use std::sync::{Arc, Mutex};
-
 use crate::error::{Error, Result};
-use jni::{
-    objects::{JObject, JValue},
-    AttachGuard, JNIEnv,
-};
+use jni::objects::{JObject, JValueGen};
+use jni::JNIEnv;
 
 lazy_static::lazy_static! {
     pub static ref JAVA_VM: jni::JavaVM =
         unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
 }
 
-enum JavaClass {
-    KeyPairGeneratorGetInstance,
-    KeyPairGeneratorGenerateKeyPair,
-}
+#[derive(Debug)]
+pub struct SecureEnvironment(JNIEnv<'static>, JObject<'static>);
 
-fn call_jni_static<'a>(
-    env: &'a mut JNIEnv<'a>,
-    token: JavaClass,
-    args: &'a [JValue<'a, 'a>],
-) -> Result<JObject<'a>> {
-    let (c, f, s) = token.into();
-    let result = env.call_static_method(c, f, s, args).unwrap();
-    let result = result.l().unwrap();
+impl SecureEnvironment {
+    pub fn new() -> Result<Self> {
+        let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
+        let algorithm = env.new_string("EC")?;
+        let provider = env.new_string("AndroidKeyStore")?;
+        let args = [(&algorithm).into(), (&provider).into()];
 
-    Ok(result)
-}
+        let key_pair_generator = env.call_static_method(
+            "java/security/KeyPairGenerator",
+            "getInstance",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/security/KeyPairGenerator;",
+            &args,
+        )?;
 
-fn call_jni<'a>(
-    env: &'a mut JNIEnv<'a>,
-    token: JavaClass,
-    class: JObject<'a>,
-    args: &'a [JValue<'a, 'a>],
-) -> Result<JObject<'a>> {
-    let (_, f, s) = token.into();
-    let result = env.call_method(class, f, s, args).unwrap();
-    let result = result.l().unwrap();
+        let kpg_instance = key_pair_generator.l()?;
 
-    Ok(result)
-}
+        Ok(Self(env, kpg_instance))
+    }
 
-impl Into<(String, String, String)> for JavaClass {
-    fn into(self) -> (String, String, String) {
-        let items = match self {
-            JavaClass::KeyPairGeneratorGetInstance => (
-                "java/security/KeyPairGenerator",
-                "getInstance",
-                "(Ljava/lang/String;)Ljava/security/KeyPairGenerator;",
-            ),
-            JavaClass::KeyPairGeneratorGenerateKeyPair => (
-                "java/security/KeyPairGenerator",
-                "generateKeyPair",
-                "()Ljava/security/KeyPair;",
-            ),
-        };
-
-        (items.0.to_owned(), items.1.to_owned(), items.2.to_owned())
+    pub fn generate_key(&mut self) -> Result<Key> {
+        let result =
+            self.0
+                .call_method(&self.1, "generateKeyPair", "()Ljava/security/KeyPair;", &[])?;
+        Ok(Key(result))
     }
 }
 
 #[derive(Debug)]
-pub struct Key(Arc<Mutex<JNIEnv<'static>>>);
-
-impl Key {
-    pub fn new() -> Result<Self> {
-        let env = JAVA_VM
-            .attach_current_thread_as_daemon()
-            .map_err(|_| Error::UnableToAttachJVMToThread)?;
-        Ok(Self(Arc::new(Mutex::new(env))))
-    }
-
-    pub fn generate(&mut self) -> Result<()> {
-        let algorithm = self
-            .0
-            .lock()
-            .map_err(|_| Error::UnableToAcquireJNIEnvLock)?
-            .new_string("EC")
-            .map_err(|_| Error::UnableToCreateJavaValue)?;
-        let algorithm = JValue::Object(&algorithm);
-
-        let provider = self
-            .0
-            .lock()
-            .map_err(|_| Error::UnableToAcquireJNIEnvLock)?
-            .new_string("AndroidKeyStore")
-            .map_err(|_| Error::UnableToCreateJavaValue)?;
-        let provider = JValue::Object(&provider);
-
-        // let args = [algorithm, provider];
-        // let key_pair_generator = call_jni_static(
-        //     &mut env.lock().unwrap(),
-        //     JavaClass::KeyPairGeneratorGetInstance,
-        //     &args,
-        // )?;
-        // let result = call_jni(
-        //     &mut env.lock().unwrap(),
-        //     JavaClass::KeyPairGeneratorGenerateKeyPair,
-        //     key_pair_generator,
-        //     &[],
-        // )?;
-
-        Ok(())
-    }
-
-    pub fn to_public_bytes(&self) -> Vec<u8> {
-        vec![]
-    }
-}
+pub struct Key<'a>(JValueGen<JObject<'a>>);

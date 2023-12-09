@@ -1,9 +1,11 @@
-use android_activity::AndroidApp;
+use std::time::Duration;
 
-use secure_env::android::Key;
+use android_activity::AndroidApp;
+use secure_env::SecureEnvironment;
 
 #[no_mangle]
 fn android_main(_app: AndroidApp) {
-    let k = Key::new();
-    println!("KEY INSTANCE: {k:?}");
+    let mut senv = SecureEnvironment::new().unwrap();
+    //let k = senv.generate_key();
+    //println!("{k:?}");
 }
