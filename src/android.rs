@@ -1,5 +1,5 @@
 use crate::error::Result;
-use jni::objects::{JObject, JValue, JValueGen};
+use jni::objects::{JObject, JValue, JValueGen, JByteArray};
 use jni::JNIEnv;
 
 lazy_static::lazy_static! {
@@ -45,22 +45,23 @@ impl SecureEnvironment {
             ],
         )?;
 
-        // let digest_sha256 = env
-        //     .get_static_field(
-        //         "android/security/keystore/KeyProperties",
-        //         "DIGEST_SHA256",
-        //         "Ljava/lang/String;",
-        //     )?
-        //     .l()?;
+        let kp_cls = env.find_class("android/security/keystore/KeyProperties")?;
 
-        // let builder = env
-        //     .call_method(
-        //         &builder,
-        //         "setDigests",
-        //         "([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
-        //         &[(&digest_sha256).into()],
-        //     )?
-        //     .l()?;
+        let digest_sha256 = env
+            .get_static_field(kp_cls, "DIGEST_SHA256", "Ljava/lang/String;")?
+            .l()?;
+
+        let class = env.find_class("java/lang/String")?;
+        let args = env.new_object_array(1, class, &digest_sha256)?;
+
+        let builder = env
+            .call_method(
+                &builder,
+                "setDigests",
+                "([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
+                &[(&args).into()],
+            )?
+            .l()?;
 
         let builder = env
             .call_method(
@@ -71,14 +72,14 @@ impl SecureEnvironment {
             )?
             .l()?;
 
-        let builder = env
-            .call_method(
-                &builder,
-                "setIsStrongBoxBacked",
-                "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
-                &[JValue::Bool(1)],
-            )?
-            .l()?;
+        // let builder = env
+        //     .call_method(
+        //         &builder,
+        //         "setIsStrongBoxBacked",
+        //         "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;",
+        //         &[JValue::Bool(1)],
+        //     )?
+        //     .l()?;
 
         let builder = env
             .call_method(
@@ -111,12 +112,52 @@ impl SecureEnvironment {
     }
 
     pub fn generate_key(&mut self) -> Result<Key> {
-        let result =
-            self.0
-                .call_method(&self.1, "generateKeyPair", "()Ljava/security/KeyPair;", &[])?;
+        let result = self
+            .0
+            .call_method(&self.1, "generateKeyPair", "()Ljava/security/KeyPair;", &[])?
+            .l()?;
         Ok(Key(result))
     }
 }
 
 #[derive(Debug)]
-pub struct Key<'a>(JValueGen<JObject<'a>>);
+pub struct Key<'a>(JObject<'a>);
+
+impl<'a> Key<'a> {
+    pub fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
+        let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
+        let algorithm = env.new_string("SHA256withECDSA")?;
+
+        let signature_instance = env
+            .call_static_method(
+                "java/security/Signature",
+                "getInstance",
+                "(Ljava/lang/String;)Ljava/security/Signature;",
+                &[(&algorithm).into()],
+            )?
+            .l()?;
+
+        let pk = env
+            .call_method(&self.0, "getPrivate", "()Ljava/security/PrivateKey;", &[])?
+            .l()?;
+
+        env.call_method(
+            &signature_instance,
+            "initSign",
+            "(Ljava/security/PrivateKey;)V",
+            &[(&pk).into()],
+        )?;
+
+        let b_arr = env.byte_array_from_slice(msg)?;
+
+        env.call_method(&signature_instance, "update", "([B)V", &[(&b_arr).into()])?;
+
+        let signature = env.call_method(&signature_instance, "sign", "()[B", &[])?.l()?;
+
+        let signature: JByteArray = signature.try_into().unwrap();
+
+        let signature = env.convert_byte_array(&signature)?;
+
+        Ok(signature)
+    }
+}
