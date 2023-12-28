@@ -1,6 +1,5 @@
 use crate::error::Result;
 use jni::objects::{JByteArray, JObject, JValue};
-use jni::JNIEnv;
 
 lazy_static::lazy_static! {
     pub static ref JAVA_VM: jni::JavaVM =
@@ -8,7 +7,7 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug)]
-pub struct SecureEnvironment(JNIEnv<'static>, JObject<'static>);
+pub struct SecureEnvironment(JObject<'static>);
 
 impl SecureEnvironment {
     pub fn new() -> Result<Self> {
@@ -26,7 +25,13 @@ impl SecureEnvironment {
 
         let kpg_instance = key_pair_generator.l()?;
 
-        // ====
+        Ok(Self(kpg_instance))
+    }
+
+    pub fn generate_key(&self, id: impl Into<String>) -> Result<Key> {
+        let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
+        let id = id.into();
+        let id = env.new_string(id)?;
 
         let purpose_sign = env
             .get_static_field(
@@ -39,10 +44,7 @@ impl SecureEnvironment {
         let builder = env.new_object(
             "android/security/keystore/KeyGenParameterSpec$Builder",
             "(Ljava/lang/String;I)V",
-            &[
-                (&env.new_string("hi").unwrap()).into(),
-                JValue::from(purpose_sign),
-            ],
+            &[(&id).into(), JValue::from(purpose_sign)],
         )?;
 
         let kp_cls = env.find_class("android/security/keystore/KeyProperties")?;
@@ -102,21 +104,45 @@ impl SecureEnvironment {
         // ====
 
         env.call_method(
-            &kpg_instance,
+            &self.0,
             "initialize",
             "(Ljava/security/spec/AlgorithmParameterSpec;)V",
             &[(&params).into()],
         )?;
 
-        Ok(Self(env, kpg_instance))
+        let result = env
+            .call_method(&self.0, "generateKeyPair", "()Ljava/security/KeyPair;", &[])?
+            .l()?;
+
+        Ok(Key(result))
     }
 
-    pub fn generate_key(&mut self) -> Result<Key> {
-        let result = self
-            .0
-            .call_method(&self.1, "generateKeyPair", "()Ljava/security/KeyPair;", &[])?
+    pub fn get_by_id(&self, id: impl Into<String>) -> Result<Key> {
+        let id = id.into();
+        let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
+        let provider = env.new_string("AndroidKeyStore")?;
+        let id = env.new_string(id)?;
+
+        let keystore_instance = env
+            .call_static_method(
+                "java/security/KeyStore",
+                "getInstance",
+                "(Ljava/lang/String;)Ljava/security/KeyStore;",
+                &[(&provider).into()],
+            )?
             .l()?;
-        Ok(Key(result))
+
+        // TODO: why is this JNI call invalid? Is null incorrect?
+        let entry = env
+            .call_method(
+                &keystore_instance,
+                "getEntry",
+                "(Ljava/lang/String;Ljava/security/KeyStore$ProtectionParameter;)Ljava/security/KeyStore$Entry;",
+                &[(&id).into(), (&JObject::null()).into()]
+            )?
+            .l()?;
+
+        Ok(Key(keystore_instance))
     }
 }
 
@@ -130,9 +156,7 @@ impl<'a> Key<'a> {
             .call_method(&self.0, "getPublic", "()Ljava/security/PublicKey;", &[])?
             .l()?;
 
-        let pk = env
-            .call_method(&pk, "getEncoded", "()[B", &[])?
-            .l()?;
+        let pk = env.call_method(&pk, "getEncoded", "()[B", &[])?.l()?;
 
         let pk: JByteArray = pk.try_into().unwrap();
 
