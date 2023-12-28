@@ -1,5 +1,5 @@
 use crate::error::Result;
-use jni::objects::{JObject, JValue, JValueGen, JByteArray};
+use jni::objects::{JByteArray, JObject, JValue};
 use jni::JNIEnv;
 
 lazy_static::lazy_static! {
@@ -124,6 +124,23 @@ impl SecureEnvironment {
 pub struct Key<'a>(JObject<'a>);
 
 impl<'a> Key<'a> {
+    pub fn get_public_key(&self) -> Result<Vec<u8>> {
+        let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
+        let pk = env
+            .call_method(&self.0, "getPublic", "()Ljava/security/PublicKey;", &[])?
+            .l()?;
+
+        let pk = env
+            .call_method(&pk, "getEncoded", "()[B", &[])?
+            .l()?;
+
+        let pk: JByteArray = pk.try_into().unwrap();
+
+        let pk = env.convert_byte_array(&pk)?;
+
+        Ok(pk)
+    }
+
     pub fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
         let algorithm = env.new_string("SHA256withECDSA")?;
@@ -152,7 +169,9 @@ impl<'a> Key<'a> {
 
         env.call_method(&signature_instance, "update", "([B)V", &[(&b_arr).into()])?;
 
-        let signature = env.call_method(&signature_instance, "sign", "()[B", &[])?.l()?;
+        let signature = env
+            .call_method(&signature_instance, "sign", "()[B", &[])?
+            .l()?;
 
         let signature: JByteArray = signature.try_into().unwrap();
 
