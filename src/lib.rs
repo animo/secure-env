@@ -9,6 +9,9 @@ pub mod ios;
 mod android;
 pub use android::*;
 
+// #[cfg(target_os = "android")]
+mod jni;
+
 // #[cfg(test)]
 // mod test {
 //     use crate::common_hsm::CommonHsm;
