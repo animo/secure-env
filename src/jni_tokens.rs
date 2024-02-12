@@ -1,4 +1,4 @@
-pub static STRING: &str = "java/lang/String";
+pub static STRING_CLS: &str = "java/lang/String";
 
 pub static EC_ALGORITHM: &str = "EC";
 pub static ANDROID_KEY_STORE_PROVIDER: &str = "AndroidKeyStore";
