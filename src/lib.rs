@@ -1,3 +1,5 @@
+#![feature(concat_idents)]
+
 pub mod error;
 pub mod key;
 pub mod secure_environment;
@@ -10,7 +12,7 @@ mod android;
 pub use android::*;
 
 // #[cfg(target_os = "android")]
-mod jni;
+mod jni_tokens;
 
 // #[cfg(test)]
 // mod test {
