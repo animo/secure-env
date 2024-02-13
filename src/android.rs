@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::{error::SecureEnvResult, key::KeyOps, secure_environment::SecureEnvironmentOps};
 use jni::objects::{JByteArray, JObject, JValue};
 
 lazy_static::lazy_static! {
@@ -7,29 +7,12 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug)]
-pub struct SecureEnvironment(JObject<'static>);
+pub struct SecureEnvironment;
 
-impl SecureEnvironment {
-    pub fn new() -> Result<Self> {
+impl SecureEnvironmentOps<Key> for SecureEnvironment {
+    fn generate_keypair(id: impl Into<String>) -> SecureEnvResult<Key> {
         let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
-        let algorithm = env.new_string("EC")?;
-        let provider = env.new_string("AndroidKeyStore")?;
-        let args = [(&algorithm).into(), (&provider).into()];
 
-        let key_pair_generator = env.call_static_method(
-            "java/security/KeyPairGenerator",
-            "getInstance",
-            "(Ljava/lang/String;Ljava/lang/String;)Ljava/security/KeyPairGenerator;",
-            &args,
-        )?;
-
-        let kpg_instance = key_pair_generator.l()?;
-
-        Ok(Self(kpg_instance))
-    }
-
-    pub fn generate_key(&self, id: impl Into<String>) -> Result<Key> {
-        let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
         let id = id.into();
         let id = env.new_string(id)?;
 
@@ -74,6 +57,8 @@ impl SecureEnvironment {
             )?
             .l()?;
 
+        // TOGGLED OF FOR DEV
+        // emulators do not have strongbox support
         // let builder = env
         //     .call_method(
         //         &builder,
@@ -101,26 +86,42 @@ impl SecureEnvironment {
             )?
             .l()?;
 
-        // ====
+        let algorithm = env.new_string("EC")?;
+        let provider = env.new_string("AndroidKeyStore")?;
+        let args = [(&algorithm).into(), (&provider).into()];
+
+        let key_pair_generator = env.call_static_method(
+            "java/security/KeyPairGenerator",
+            "getInstance",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/security/KeyPairGenerator;",
+            &args,
+        )?;
+
+        let kpg_instance = key_pair_generator.l()?;
 
         env.call_method(
-            &self.0,
+            &kpg_instance,
             "initialize",
             "(Ljava/security/spec/AlgorithmParameterSpec;)V",
             &[(&params).into()],
         )?;
 
         let result = env
-            .call_method(&self.0, "generateKeyPair", "()Ljava/security/KeyPair;", &[])?
+            .call_method(
+                &kpg_instance,
+                "generateKeyPair",
+                "()Ljava/security/KeyPair;",
+                &[],
+            )?
             .l()?;
 
         Ok(Key(result))
     }
 
-    pub fn get_by_id(&self, id: impl Into<String>) -> Result<Key> {
-        let id = id.into();
+    fn get_keypair_by_id(id: impl Into<String>) -> SecureEnvResult<Key> {
         let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
         let provider = env.new_string("AndroidKeyStore")?;
+        let id = id.into();
         let id = env.new_string(id)?;
 
         let keystore_instance = env
@@ -132,7 +133,13 @@ impl SecureEnvironment {
             )?
             .l()?;
 
-        // TODO: why is this JNI call invalid? Is null incorrect?
+        env.call_method(
+            &keystore_instance,
+            "load",
+            "(Ljava/security/KeyStore$LoadStoreParameter;)V",
+            &[(&JObject::null()).into()],
+        )?;
+
         let entry = env
             .call_method(
                 &keystore_instance,
@@ -142,15 +149,45 @@ impl SecureEnvironment {
             )?
             .l()?;
 
-        Ok(Key(keystore_instance))
+        let private_key = env
+            .call_method(&entry, "getPrivateKey", "()Ljava/security/PrivateKey;", &[])?
+            .l()?;
+
+        let certificate = env
+            .call_method(
+                &entry,
+                "getCertificate",
+                "()Ljava/security/cert/Certificate;",
+                &[],
+            )?
+            .l()?;
+
+        let public_key = env
+            .call_method(
+                &certificate,
+                "getPublicKey",
+                "()Ljava/security/PublicKey;",
+                &[],
+            )?
+            .l()?;
+
+        let key_pair_class = env.find_class("java/security/KeyPair")?;
+
+        let key_pair = env.new_object(
+            &key_pair_class,
+            "(Ljava/security/PublicKey;Ljava/security/PrivateKey;)V",
+            &[(&public_key).into(), (&private_key).into()],
+        )?;
+
+        Ok(Key(key_pair))
     }
 }
 
 #[derive(Debug)]
-pub struct Key<'a>(JObject<'a>);
+pub struct Key(JObject<'static>);
 
-impl<'a> Key<'a> {
-    pub fn get_public_key(&self) -> Result<Vec<u8>> {
+impl KeyOps for Key {
+    fn get_public_key(&self) -> SecureEnvResult<Vec<u8>> {
         let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
         let pk = env
             .call_method(&self.0, "getPublic", "()Ljava/security/PublicKey;", &[])?
@@ -165,7 +202,7 @@ impl<'a> Key<'a> {
         Ok(pk)
     }
 
-    pub fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
+    fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
         let mut env = JAVA_VM.attach_current_thread_as_daemon()?;
         let algorithm = env.new_string("SHA256withECDSA")?;
 

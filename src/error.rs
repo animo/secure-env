@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum SecureEnvError {
     #[error("JNI Error")]
     JniError(#[from] jni::errors::Error),
     #[error("Unable to generate key")]
@@ -14,4 +14,4 @@ pub enum Error {
     UnableToCreateJavaValue,
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type SecureEnvResult<T> = std::result::Result<T, SecureEnvError>;
