@@ -359,11 +359,10 @@ impl KeyOps for Key {
             UnableToGetPublicKey
         )?;
 
-        // `try_into` returns `Infallible` so we can unwrap safely
-        let public_key: JByteArray = public_key.try_into().unwrap();
+        let public_key: JByteArray = public_key.into();
 
         let public_key = env
-            .convert_byte_array(&public_key)
+            .convert_byte_array(public_key)
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
         Ok(public_key)
@@ -425,11 +424,10 @@ impl KeyOps for Key {
             UnableToCreateSignature
         )?;
 
-        // `try_into` returns `Infallible` so we can unwrap safely
-        let signature: JByteArray = signature.try_into().unwrap();
+        let signature: JByteArray = signature.into();
 
         let signature = env
-            .convert_byte_array(&signature)
+            .convert_byte_array(signature)
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
         Ok(signature)

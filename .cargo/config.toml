@@ -1,3 +1,4 @@
-[target.aarch64-linux-android]
-ar = "/Users/beri/Library/Android/sdk/ndk/24.0.8215888/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-ar"
-linker = "/Users/beri/Library/Android/sdk/ndk/24.0.8215888/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android26-clang"
+# This is added so rust-analyzer checks the `target_os` of android
+# this will be turned off during production as we also support ios
+[build]
+target = "aarch64-linux-android"
