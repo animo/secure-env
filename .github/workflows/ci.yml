@@ -1,21 +1,20 @@
 name: Check
 
-permissions:
-  contents: read
-
 on:
   pull_request:
   push:
     branches:
       - main
 
-
-# TODO: check on target ios and android
+env:
+  RUST_VERSION: "1.65.0"
 
 jobs:
   format:
-    runs-on: ubuntu-latest
     name: Format
+
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
       - name: Install stable
@@ -32,16 +31,25 @@ jobs:
       - run: cargo fmt --all -- --check
 
   clippy:
-    runs-on: ubuntu-latest
     name: Clippy
-    permissions:
-      contents: read
-      checks: write
+
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            runner: ubuntu-latest
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+
     steps:
       - uses: actions/checkout@v3
       - name: Install stable
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.target }}
           components: clippy
 
       - name: Cache cargo resources
@@ -50,14 +58,13 @@ jobs:
           shared-key: deps
           cache-on-failure: true
 
-      - run: cargo clippy
+      - run: cargo clippy --target=${{ matrix.target }}
 
   audit:
-    runs-on: ubuntu-latest
     name: Audit
-    permissions:
-      contents: read
-      checks: write
+
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
       - name: Install stable
@@ -72,15 +79,25 @@ jobs:
       - run: cargo audit
 
   check:
-    runs-on: ubuntu-latest
     name: Check
-    permissions:
-      contents: read
-      checks: write
+
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            runner: ubuntu-latest
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+
     steps:
       - uses: actions/checkout@v3
       - name: Install stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.target }}
 
       - name: Cache cargo resources
         uses: Swatinem/rust-cache@v2
@@ -88,4 +105,4 @@ jobs:
           shared-key: deps
           cache-on-failure: true
 
-      - run: cargo check
+      - run: cargo check --target=${{ matrix.target }}
