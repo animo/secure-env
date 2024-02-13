@@ -19,6 +19,11 @@ pub enum SecureEnvError {
     // #[cfg(target_os = "android")]
     #[error("Unable to create java value. Additional info: {0}")]
     UnableToCreateJavaValue(jni::errors::Error),
+
+    // TODO: check if we can also use this error on iOS.
+    // Otherwise add a cfg target to android only
+    #[error("Device does not support hardware backed keys. Additional info: {0:#?}")]
+    HardwareBackedKeysAreNotSupported(Option<String>),
 }
 
 pub type SecureEnvResult<T> = std::result::Result<T, SecureEnvError>;

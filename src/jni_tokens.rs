@@ -1,5 +1,8 @@
 pub static STRING_CLS: &str = "java/lang/String";
 
+pub static EXCEPTION_TO_STRING: &str = "toString";
+pub static EXCEPTION_TO_STRING_SIG: &str = "()Ljava/lang/String;";
+
 pub static EC_ALGORITHM: &str = "EC";
 pub static ANDROID_KEY_STORE_PROVIDER: &str = "AndroidKeyStore";
 pub static SHA256_WITH_ECDSA_ALGO: &str = "SHA256withECDSA";
