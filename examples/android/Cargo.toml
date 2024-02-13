@@ -8,7 +8,6 @@ publish = false
 name = "android"
 crate-type = ["cdylib"]
 
-[dependencies]
 secure-env = { path = "../.." }
 android-activity = { version = "0.5.0", features = ["native-activity"] }
 android_logger = "0.13.2"

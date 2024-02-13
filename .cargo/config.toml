@@ -1,4 +1,4 @@
 # This is added so rust-analyzer checks the `target_os` of android
 # this will be turned off during production as we also support ios
-[build]
-target = "aarch64-linux-android"
+# [build]
+# target = "aarch64-linux-android"

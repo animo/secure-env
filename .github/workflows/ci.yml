@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  RUST_VERSION: "1.65.0"
+  RUST_VERSION: "nightly"
 
 jobs:
   format:
@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Install stable
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Install stable
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -67,7 +67,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Install stable
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo resources
@@ -93,7 +93,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Install stable
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
