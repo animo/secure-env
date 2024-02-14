@@ -16,9 +16,9 @@ maintenance = { status = "actively-developed" }
 crate-type = ["cdylib", "rlib"]
 name = "secure_env"
 
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+[target.'cfg(target_os = "ios")'.dependencies]
 p256 = { version = "0.13.2", features = ["ecdsa-core"] }
-security-framework = { version = "2.9.2", features = ["OSX_10_12"] }
+security-framework = { version = "2.9.2" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.5.0", features = ["native-activity"] }

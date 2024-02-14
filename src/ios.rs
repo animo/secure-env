@@ -3,7 +3,12 @@ use crate::{
     KeyOps, SecureEnvironmentOps,
 };
 use p256::{ecdsa::Signature, elliptic_curve::group::GroupEncoding};
-use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token};
+use security_framework::{
+    access_control::SecAccessControl,
+    item::{ItemClass, ItemSearchOptions, KeyClass, Location, SearchResult},
+    key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token},
+    passwords_options::AccessControlOptions,
+};
 
 /// Unit struct that can be used to create and get keypairs by id
 ///
@@ -25,13 +30,23 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         // Set the key type to `ec` (Elliptic Curve)
         let opts = opts.set_key_type(KeyType::ec());
 
+        let options = AccessControlOptions::PRIVATE_KEY_USAGE & AccessControlOptions::BIOMETRY_CURRENT_SET;
+        let flags = SecAccessControl::create_with_flags(options.bits()).unwrap();
+        let opts = opts.set_access_control(flags);
+
+        // let opts = opts.set_app_tag("id.animo.ios");
+
         // Set the a token of `SecureEnclave`.
         // Meaning Apple will store the key in a secure element
         let opts = opts.set_token(Token::SecureEnclave);
 
+        // Store the key in the keychain
+        let opts = opts.set_location(Location::DataProtectionKeychain);
+
         // Give the key a label so we can retrieve it later
         // with the `SecureEnvironment::get_keypair_by_id` method
         let opts = opts.set_label(id);
+
         let dict = opts.to_dictionary();
 
         // Generate a key using the dictionary
@@ -44,7 +59,25 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
     fn get_keypair_by_id(id: impl Into<String>) -> SecureEnvResult<Key> {
         let id = id.into();
-        todo!()
+
+        let search_result = ItemSearchOptions::new()
+            // Search by the provided label
+            .label(&id)
+            .load_refs(true)
+            .class(ItemClass::key())
+            .key_class(KeyClass::private())
+            .search()
+            .unwrap();
+
+        let result = search_result.get(0).unwrap();
+
+        match result {
+            SearchResult::Ref(r) => match r {
+                security_framework::item::Reference::Key(k) => return Ok(Key(k.to_owned())),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -153,6 +186,18 @@ mod test {
     fn generate_key_pair() {
         let key = SecureEnvironment::generate_keypair("my-test-key").unwrap();
         assert!(!addr_of!(key).is_null());
+    }
+
+    #[test]
+    fn get_keypair_by_id() {
+        let id = "my-get-keypair-by-id-test-key";
+        let key = SecureEnvironment::generate_keypair(id).unwrap();
+        let public_key = key.get_public_key().unwrap();
+
+        let retrieved_key = SecureEnvironment::get_keypair_by_id(id).unwrap();
+        let retrieved_public_key = retrieved_key.get_public_key().unwrap();
+
+        assert_eq!(public_key, retrieved_public_key);
     }
 
     #[test]
