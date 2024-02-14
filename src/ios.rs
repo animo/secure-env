@@ -44,6 +44,13 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         // Set the key type to `ec` (Elliptic Curve)
         let opts = opts.set_key_type(KeyType::ec());
 
+        let options =
+            AccessControlOptions::PRIVATE_KEY_USAGE & AccessControlOptions::BIOMETRY_CURRENT_SET;
+        let flags = SecAccessControl::create_with_flags(options.bits()).unwrap();
+        let opts = opts.set_access_control(flags);
+
+        // let opts = opts.set_app_tag("id.animo.ios");
+
         // Set the a token of `SecureEnclave`.
         // Meaning Apple will store the key in a secure element
         let opts = opts.set_token(Token::SecureEnclave);
