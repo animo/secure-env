@@ -1,77 +1,74 @@
 use crate::{
-    error::{Error, Result},
-    senv,
+    error::{SecureEnvError, SecureEnvResult},
+    KeyOps, SecureEnvironmentOps,
 };
-use p256::{ecdsa::Signature, elliptic_curve::group::GroupEncoding, PublicKey};
-use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token};
+use security_framework::key::{GenerateKeyOptions, KeyType, SecKey, Token};
 
-#[derive(Debug)]
+/// Unit struct that can be used to create and get keypairs by id
+///
+/// # Examples
+///
+/// ```
+/// use secure_env::{SecureEnvironment, SecureEnvironmentOps};
+///
+/// let _key = SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// ```
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
+pub struct SecureEnvironment;
+
+impl SecureEnvironmentOps<Key> for SecureEnvironment {
+    fn generate_keypair(id: impl Into<String>) -> SecureEnvResult<Key> {
+        // Create a dictionary with the following options:
+        let mut opts = GenerateKeyOptions::default();
+
+        // Set the key type to `ec` (Elliptic Curve)
+        let opts = opts.set_key_type(KeyType::ec());
+
+        // Set the a token of `SecureEnclave`.
+        // Meaning Apple will store the key in a secure element
+        let opts = opts.set_token(Token::SecureEnclave);
+
+        // Give the key a label so we can retrieve it later
+        // with the `SecureEnvironment::get_keypair_by_id` method
+        let opts = opts.set_label(id);
+        let dict = opts.to_dictionary();
+
+        // Generate a key using the dictionary
+        // This also passes along any information the OS provides when an error occurs
+        let key = SecKey::generate(dict)
+            .map_err(|e| SecureEnvError::UnableToGenerateKey(Some(e.to_string())))?;
+
+        Ok(Key(key))
+    }
+
+    fn get_keypair_by_id(id: impl Into<String>) -> SecureEnvResult<Key> {
+        let id = id.into();
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Key(SecKey);
 
-impl Key {
-    pub fn new() -> Result<Self> {
-        let mut opts = GenerateKeyOptions::default();
-        opts.set_key_type(KeyType::ec());
-        opts.set_token(Token::SecureEnclave);
-        opts.set_label("some-app");
-        let key = SecKey::generate(opts.to_dictionary()).map_err(|_| Error::UnableToGenerateKey)?;
-        Ok(Self(key))
+impl KeyOps for Key {
+    fn get_public_key(&self) -> SecureEnvResult<Vec<u8>> {
+        todo!()
+    }
+
+    fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
+        todo!()
     }
 }
 
-impl senv::Key for Key {
-    fn to_public_key(&self) -> Result<Vec<u8>> {
-        let public_key = self.0.public_key().ok_or(Error::UnableToExtractPublicKey)?;
-        let sec1_bytes = public_key
-            .external_representation()
-            .ok_or(Error::UnableToExtractPublicKey)?
-            .to_vec();
+#[cfg(all(test, any(target_os = "macos", target_os = "ios")))]
+mod test {
+    use std::ptr::addr_of;
 
-        let pk =
-            PublicKey::from_sec1_bytes(&sec1_bytes).map_err(|_| Error::UnableToExtractPublicKey)?;
-
-        Ok(pk.as_affine().to_bytes().to_vec())
-    }
-}
-
-impl senv::KeySign for Key {
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
-        let der_sig = self
-            .0
-            .create_signature(Algorithm::ECDSASignatureMessageX962SHA256, message)
-            .map_err(|_| Error::UnableToCreateSignature)?;
-
-        let sig = Signature::from_der(&der_sig).map_err(|_| Error::UnableToCreateSignature)?;
-
-        Ok(sig.to_vec())
-    }
-}
-
-#[cfg(test)]
-mod ios_test {
     use super::*;
-    use crate::senv::{Key as _, KeySign};
 
     #[test]
-    fn create_key() {
-        assert!(Key::new().is_ok());
-    }
-
-    #[test]
-    fn get_public_bytes() {
-        let key = Key::new().unwrap();
-
-        let public_bytes = key.to_public_key().unwrap();
-
-        assert_eq!(public_bytes.len(), 33);
-    }
-
-    #[test]
-    fn sign_message() {
-        let key = Key::new().unwrap();
-        let msg = b"hello world!";
-        let sig = key.sign(msg).unwrap();
-
-        assert_eq!(sig.len(), 64);
+    fn generate_key_pair() {
+        let key = SecureEnvironment::generate_keypair("my-test-key").unwrap();
+        assert!(!addr_of!(key).is_null());
     }
 }

@@ -1,8 +1,7 @@
 use crate::{
     error::{SecureEnvError, SecureEnvResult},
     jni_tokens::*,
-    key::KeyOps,
-    secure_environment::SecureEnvironmentOps,
+    KeyOps, SecureEnvironmentOps,
 };
 use jni::objects::{JByteArray, JObject, JValue};
 
