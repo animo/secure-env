@@ -38,7 +38,7 @@ jobs:
         include:
           - target: aarch64-linux-android
             runner: ubuntu-latest
-          - target: aarch64-apple-darwin
+          - target: aarch64-apple-ios
             runner: macos-latest
 
     runs-on: ${{ matrix.runner }}
@@ -86,7 +86,7 @@ jobs:
         include:
           - target: aarch64-linux-android
             runner: macos-latest
-          - target: aarch64-apple-darwin
+          - target: aarch64-apple-ios
             runner: macos-latest
 
     runs-on: ${{ matrix.runner }}

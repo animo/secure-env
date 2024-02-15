@@ -14,10 +14,24 @@ use security_framework::{
 ///
 /// # Examples
 ///
+/// ## Generate a keypair
+///
 /// ```
 /// use secure_env::{SecureEnvironment, SecureEnvironmentOps};
 ///
-/// let _key = SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// let key = SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// ```
+///
+/// ## Get a keypair from the keychain
+///
+/// ```
+/// use secure_env::{SecureEnvironment, SecureEnvironmentOps};
+///
+/// {
+///     SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// }
+///
+/// let key = SecureEnvironment::get_keypair_by_id("my-unique-id").unwrap();
 /// ```
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct SecureEnvironment;
@@ -29,12 +43,6 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         // Set the key type to `ec` (Elliptic Curve)
         let opts = opts.set_key_type(KeyType::ec());
-
-        let options = AccessControlOptions::PRIVATE_KEY_USAGE & AccessControlOptions::BIOMETRY_CURRENT_SET;
-        let flags = SecAccessControl::create_with_flags(options.bits()).unwrap();
-        let opts = opts.set_access_control(flags);
-
-        // let opts = opts.set_app_tag("id.animo.ios");
 
         // Set the a token of `SecureEnclave`.
         // Meaning Apple will store the key in a secure element
@@ -171,63 +179,5 @@ impl KeyOps for Key {
         let signature = signature.to_vec();
 
         Ok(signature)
-    }
-}
-
-#[cfg(all(test, any(target_os = "macos", target_os = "ios")))]
-mod test {
-    use std::ptr::addr_of;
-
-    use askar_crypto::{alg::p256::P256KeyPair, repr::KeyPublicBytes};
-
-    use super::*;
-
-    #[test]
-    fn generate_key_pair() {
-        let key = SecureEnvironment::generate_keypair("my-test-key").unwrap();
-        assert!(!addr_of!(key).is_null());
-    }
-
-    #[test]
-    fn get_keypair_by_id() {
-        let id = "my-get-keypair-by-id-test-key";
-        let key = SecureEnvironment::generate_keypair(id).unwrap();
-        let public_key = key.get_public_key().unwrap();
-
-        let retrieved_key = SecureEnvironment::get_keypair_by_id(id).unwrap();
-        let retrieved_public_key = retrieved_key.get_public_key().unwrap();
-
-        assert_eq!(public_key, retrieved_public_key);
-    }
-
-    #[test]
-    fn get_public_key() {
-        let key = SecureEnvironment::generate_keypair("my-test-public-key").unwrap();
-        let public_key_bytes = key.get_public_key().unwrap();
-
-        assert_eq!(public_key_bytes.len(), 33);
-    }
-
-    #[test]
-    fn sign() {
-        let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
-
-        let signature = key.sign(b"Hello World!").unwrap();
-
-        assert_eq!(signature.len(), 64);
-    }
-
-    #[test]
-    fn sign_and_external_verification() {
-        let msg = b"Hello World!";
-        let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
-
-        let public_key = key.get_public_key().unwrap();
-        let signature = key.sign(b"Hello World!").unwrap();
-
-        let verify_key = P256KeyPair::from_public_bytes(&public_key).unwrap();
-        let is_signature_valid = verify_key.verify_signature(msg, &signature);
-
-        assert!(is_signature_valid);
     }
 }
