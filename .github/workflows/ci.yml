@@ -133,7 +133,9 @@ jobs:
   test-android:
     name: Test Android
 
-    runs-on: ubuntu-latest
+    # macos is used here as it allows for
+    # hardware acceleration on the Android emulator
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
