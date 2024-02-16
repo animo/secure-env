@@ -1,5 +1,8 @@
 #![feature(concat_idents)]
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+compile_error!("Only Android and iOS are supported targets");
+
 pub mod error;
 pub mod key;
 pub mod secure_environment;
