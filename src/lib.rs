@@ -1,4 +1,4 @@
-#![feature(concat_idents)]
+#![feature(concat_idents, pointer_is_aligned)]
 
 pub mod error;
 

@@ -10,30 +10,49 @@ lazy_static::lazy_static! {
         unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
 }
 
-macro_rules! jni_call_method {
-    ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
-        $env.call_method($cls, $method, concat_idents!($method, _SIG), $args)
-            .and_then(|v| v.$ret_typ())
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+macro_rules! jni_handle_error {
+    ($env:expr, $err:ident) => {
+        if $env
+            .exception_check()
+            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?
+        {
+            let throwable = $env
+                .exception_occurred()
+                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
+            $env.exception_clear()
+                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
+
+            let message = $env
+                .call_method(
+                    &throwable,
+                    EXCEPTION_TO_STRING,
+                    EXCEPTION_TO_STRING_SIG,
+                    &[],
+                )
+                .and_then(|v| v.l())
+                .unwrap();
+
+            let msg_rust: String = $env
+                .get_string(&message.into())
+                .map_err($crate::error::SecureEnvError::UnableToCreateJavaValue)?
+                .into();
+
+            return Err($crate::error::SecureEnvError::$err(Some(msg_rust)));
+        }
     };
 }
 
 macro_rules! jni_call_method {
-    ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {{
-        let res = $env
-            .call_method($cls, $method, concat_idents!($method, _SIG), $args)
+    ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
+        $env.call_method($cls, $method, concat_idents!($method, _SIG), $args)
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
             .and_then(|v| {
                 jni_handle_error!($env, $err);
 
                 v.$ret_typ()
                     .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
-            });
-
-        jni_handle_error!($env, $err);
-
-        res
-    }};
+            })
+    };
 
     ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
         jni_call_method!($env, $cls, $method, &[], $ret_typ, $err)
@@ -123,6 +142,11 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
 
         let ctx = ndk_context::android_context().context() as jni::sys::jobject;
+        if ctx.is_null() || !ctx.is_aligned() {
+            return Err(SecureEnvError::UnableToGenerateKey(Some(
+                "Could not acquire context. Null, or unaligned pointer, was found".to_owned(),
+            )));
+        }
         let ctx = unsafe { JObject::from_raw(ctx) };
 
         let id = id.into();

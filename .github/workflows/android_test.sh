@@ -8,9 +8,9 @@ adb shell am start -a android.intent.action.MAIN -n "id.animo.example.android/an
 
 sleep 30
 
-adb logcat *:E android:V -d | tee ~/logcat.log
+adb logcat RustStdoutStderr:D '*:S' | tee ~/logcat.log
 
-if grep 'android' ~/logcat.log;
+if grep 'RustStdoutStderr' ~/logcat.log;
 then
     echo "App running"
 else
@@ -18,10 +18,10 @@ else
     exit 1
 fi
 
-MSG=$(grep -e 'RustPanic' "$HOME"/logcat.log)
+MSG=$(grep -e 'panicked' "$HOME"/logcat.log)
 if [ -z "${MSG}" ]; then
-  exit 0
-else
   echo "::error:: Rust panicked! Tests failed. Logs will be uploaded"
   exit 1
+else
+  exit 0
 fi
