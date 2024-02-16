@@ -7,6 +7,16 @@ pub static EC_ALGORITHM: &str = "EC";
 pub static ANDROID_KEY_STORE_PROVIDER: &str = "AndroidKeyStore";
 pub static SHA256_WITH_ECDSA_ALGO: &str = "SHA256withECDSA";
 
+// Context
+
+pub static CONTEXT_GET_PACKAGE_MANAGER: &str = "getPackageManager";
+pub static CONTEXT_GET_PACKAGE_MANAGER_SIG: &str = "()Landroid/content/pm/PackageManager;";
+
+// Package manager
+
+pub static PACKAGE_MANAGER_HAS_SYSTEM_FEATURE: &str = "hasSystemFeature";
+pub static PACKAGE_MANAGER_HAS_SYSTEM_FEATURE_SIG: &str = "(Ljava/lang/String;I)Z";
+
 // Key Properties
 
 pub static KEY_PROPERTIES_CLS: &str = "android/security/keystore/KeyProperties";

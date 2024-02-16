@@ -10,32 +10,11 @@ lazy_static::lazy_static! {
         unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
 }
 
-macro_rules! jni_handle_error {
-    ($env:expr, $err:ident) => {
-        if $env
-            .exception_check()
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?
-        {
-            let throwable = $env
-                .exception_occurred()
-                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
-            $env.exception_clear()
-                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
-
-            let message = $env
-                .call_method(
-                    &throwable,
-                    EXCEPTION_TO_STRING,
-                    EXCEPTION_TO_STRING_SIG,
-                    &[],
-                )
-                .and_then(|v| v.l())
-                .unwrap();
-
-            let msg_rust: String = $env.get_string(&message.into()).expect("three").into();
-
-            return Err($crate::error::SecureEnvError::$err(Some(msg_rust)));
-        }
+macro_rules! jni_call_method {
+    ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
+        $env.call_method($cls, $method, concat_idents!($method, _SIG), $args)
+            .and_then(|v| v.$ret_typ())
+            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
     };
 }
 
@@ -83,7 +62,7 @@ macro_rules! jni_call_static_method {
         res
     }};
 
-    ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
+    ($env:expr, $cls:ident, $method:ident, $ret_typ:ident, $err:ident) => {
         jni_call_static_method!($env, $cls, $method, &[], $ret_typ, $err)
     };
 }
@@ -143,6 +122,9 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             .attach_current_thread_as_daemon()
             .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
 
+        let ctx = ndk_context::android_context().context() as jni::sys::jobject;
+        let ctx = unsafe { JObject::from_raw(ctx) };
+
         let id = id.into();
 
         let id = env
@@ -198,16 +180,73 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             UnableToGenerateKey
         )?;
 
-        // TOGGLED FOR DEV
-        // emulators do not have strongbox support
-        // let builder = jni_call_method!(
-        //     env,
-        //     builder,
-        //     KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED,
-        //     &[JValue::Bool(1)],
-        //     l,
-        //     HardwareBackedKeysAreNotSupported
-        // )?;
+        let package_manager = jni_call_method!(
+            env,
+            ctx,
+            CONTEXT_GET_PACKAGE_MANAGER,
+            l,
+            UnableToGenerateKey
+        )?;
+
+        let hardware_keystore_token = env
+            .new_string("android.hardware.hardware_keystore")
+            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+
+        // This has not been documented anywhere that I could find.
+        // After some debugging with emulators and multiple real device
+        // (some with a Secure Element (Pixel 6a) and some without (OnePlus Nord))
+        // 300 seems to be the correct cut-off.
+        let required_hardware_keystore_version = 300;
+
+        let has_strongbox_support = jni_call_method!(
+            env,
+            &package_manager,
+            PACKAGE_MANAGER_HAS_SYSTEM_FEATURE,
+            &[
+                (&hardware_keystore_token).into(),
+                required_hardware_keystore_version.into()
+            ],
+            z,
+            UnableToGenerateKey
+        )?;
+
+        let builder = if has_strongbox_support {
+            jni_call_method!(
+                env,
+                &builder,
+                KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED,
+                &[JValue::Bool(1)],
+                l,
+                UnableToGenerateKey
+            )?
+        } else {
+            // 41: Hardware enforcement of device-unlocked keys
+            // TODO: check the exact meaning behind this
+            //       Maybe there is number that corrolates to TEE?
+            //       This seems to work best with testing
+            let required_device_unlocked_keystore_version = 41;
+
+            let has_device_unlocked_keystore_support = jni_call_method!(
+                env,
+                &package_manager,
+                PACKAGE_MANAGER_HAS_SYSTEM_FEATURE,
+                &[
+                    (&hardware_keystore_token).into(),
+                    required_device_unlocked_keystore_version.into()
+                ],
+                z,
+                UnableToGenerateKey
+            )?;
+
+            if !has_device_unlocked_keystore_support {
+                return Err(SecureEnvError::UnableToGenerateKey(Some(
+                    "Unable to generate keypair. Device has insufficient keystore support"
+                        .to_owned(),
+                )));
+            }
+
+            builder
+        };
 
         let builder = jni_call_method!(
             env,
