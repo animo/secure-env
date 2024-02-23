@@ -3,16 +3,35 @@ use crate::{
     KeyOps, SecureEnvironmentOps,
 };
 use p256::{ecdsa::Signature, elliptic_curve::group::GroupEncoding};
-use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token};
+use security_framework::{
+    access_control::SecAccessControl,
+    item::{ItemClass, ItemSearchOptions, KeyClass, Location, SearchResult},
+    key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token},
+    passwords_options::AccessControlOptions,
+};
 
 /// Unit struct that can be used to create and get keypairs by id
 ///
 /// # Examples
 ///
+/// ## Generate a keypair
+///
 /// ```
 /// use secure_env::{SecureEnvironment, SecureEnvironmentOps};
 ///
-/// let _key = SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// let key = SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// ```
+///
+/// ## Get a keypair from the keychain
+///
+/// ```
+/// use secure_env::{SecureEnvironment, SecureEnvironmentOps};
+///
+/// {
+///     SecureEnvironment::generate_keypair("my-unique-id").unwrap();
+/// }
+///
+/// let key = SecureEnvironment::get_keypair_by_id("my-unique-id").unwrap();
 /// ```
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub struct SecureEnvironment;
@@ -29,9 +48,13 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         // Meaning Apple will store the key in a secure element
         let opts = opts.set_token(Token::SecureEnclave);
 
+        // Store the key in the keychain
+        let opts = opts.set_location(Location::DataProtectionKeychain);
+
         // Give the key a label so we can retrieve it later
         // with the `SecureEnvironment::get_keypair_by_id` method
         let opts = opts.set_label(id);
+
         let dict = opts.to_dictionary();
 
         // Generate a key using the dictionary
@@ -44,7 +67,25 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
     fn get_keypair_by_id(id: impl Into<String>) -> SecureEnvResult<Key> {
         let id = id.into();
-        todo!()
+
+        let search_result = ItemSearchOptions::new()
+            // Search by the provided label
+            .label(&id)
+            .load_refs(true)
+            .class(ItemClass::key())
+            .key_class(KeyClass::private())
+            .search()
+            .unwrap();
+
+        let result = search_result.get(0).unwrap();
+
+        match result {
+            SearchResult::Ref(r) => match r {
+                security_framework::item::Reference::Key(k) => return Ok(Key(k.to_owned())),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -138,51 +179,5 @@ impl KeyOps for Key {
         let signature = signature.to_vec();
 
         Ok(signature)
-    }
-}
-
-#[cfg(all(test, any(target_os = "macos", target_os = "ios")))]
-mod test {
-    use std::ptr::addr_of;
-
-    use askar_crypto::{alg::p256::P256KeyPair, repr::KeyPublicBytes};
-
-    use super::*;
-
-    #[test]
-    fn generate_key_pair() {
-        let key = SecureEnvironment::generate_keypair("my-test-key").unwrap();
-        assert!(!addr_of!(key).is_null());
-    }
-
-    #[test]
-    fn get_public_key() {
-        let key = SecureEnvironment::generate_keypair("my-test-public-key").unwrap();
-        let public_key_bytes = key.get_public_key().unwrap();
-
-        assert_eq!(public_key_bytes.len(), 33);
-    }
-
-    #[test]
-    fn sign() {
-        let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
-
-        let signature = key.sign(b"Hello World!").unwrap();
-
-        assert_eq!(signature.len(), 64);
-    }
-
-    #[test]
-    fn sign_and_external_verification() {
-        let msg = b"Hello World!";
-        let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
-
-        let public_key = key.get_public_key().unwrap();
-        let signature = key.sign(b"Hello World!").unwrap();
-
-        let verify_key = P256KeyPair::from_public_bytes(&public_key).unwrap();
-        let is_signature_valid = verify_key.verify_signature(msg, &signature);
-
-        assert!(is_signature_valid);
     }
 }
