@@ -11,13 +11,51 @@ lazy_static::lazy_static! {
         unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
 }
 
-macro_rules! jni_call_method {
-    ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
-        $env.call_method($cls, $method, concat_idents!($method, _SIG), $args)
+macro_rules! jni_handle_error {
+    ($env:expr, $err:ident) => {
+        if $env
+            .exception_check()
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?
-            .$ret_typ()
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+        {
+            let throwable = $env
+                .exception_occurred()
+                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
+            $env.exception_clear()
+                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
+
+            let message = $env
+                .call_method(
+                    &throwable,
+                    EXCEPTION_TO_STRING,
+                    EXCEPTION_TO_STRING_SIG,
+                    &[],
+                )
+                .and_then(|v| v.l())
+                .unwrap();
+
+            let msg_rust: String = $env.get_string(&message.into()).expect("three").into();
+
+            return Err($crate::error::SecureEnvError::$err(Some(msg_rust)));
+        }
     };
+}
+
+macro_rules! jni_call_method {
+    ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {{
+        let res = $env
+            .call_method($cls, $method, concat_idents!($method, _SIG), $args)
+            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            .and_then(|v| {
+                jni_handle_error!($env, $err);
+
+                v.$ret_typ()
+                    .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            });
+
+        jni_handle_error!($env, $err);
+
+        res
+    }};
 
     ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
         jni_call_method!($env, $cls, $method, &[], $ret_typ, $err)
@@ -25,16 +63,26 @@ macro_rules! jni_call_method {
 }
 
 macro_rules! jni_call_static_method {
-    ($env:expr, $cls:ident, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
-        $env.call_static_method(
-            concat_idents!($cls, _CLS),
-            $method,
-            concat_idents!($method, _SIG),
-            $args,
-        )
-        .and_then(|v| v.$ret_typ())
-        .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
-    };
+    ($env:expr, $cls:ident, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {{
+        let res = $env
+            .call_static_method(
+                concat_idents!($cls, _CLS),
+                $method,
+                concat_idents!($method, _SIG),
+                $args,
+            )
+            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            .and_then(|v| {
+                jni_handle_error!($env, $err);
+
+                v.$ret_typ()
+                    .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            });
+
+        jni_handle_error!($env, $err);
+
+        res
+    }};
 
     ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
         jni_call_static_method!($env, $cls, $method, &[], $ret_typ, $err)
@@ -42,29 +90,49 @@ macro_rules! jni_call_static_method {
 }
 
 macro_rules! jni_get_static_field {
-    ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
-        $env.get_static_field($cls, $method, concat_idents!($method, _SIG))
-            .and_then(|v| v.$ret_typ())
+    ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {{
+        let field = $env
+            .get_static_field($cls, $method, concat_idents!($method, _SIG))
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
-    };
+            .and_then(|v| {
+                jni_handle_error!($env, $err);
+
+                v.$ret_typ()
+                    .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            });
+
+        jni_handle_error!($env, $err);
+
+        field
+    }};
 }
 
 macro_rules! jni_new_object {
-    ($env:expr, $cls:ident, $args:expr, $err:ident) => {
-        $env.new_object(
-            concat_idents!($cls, _CLS),
-            concat_idents!($cls, _CTOR_SIG),
-            $args,
-        )
-        .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
-    };
+    ($env:expr, $cls:ident, $args:expr, $err:ident) => {{
+        let obj = $env
+            .new_object(
+                concat_idents!($cls, _CLS),
+                concat_idents!($cls, _CTOR_SIG),
+                $args,
+            )
+            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())));
+
+        jni_handle_error!($env, $err);
+
+        obj
+    }};
 }
 
 macro_rules! jni_find_class {
-    ($env:expr, $cls:ident, $err:ident) => {
-        $env.find_class(concat_idents!($cls, _CLS))
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
-    };
+    ($env:expr, $cls:ident, $err:ident) => {{
+        let cls = $env
+            .find_class(concat_idents!($cls, _CLS))
+            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())));
+
+        jni_handle_error!($env, $err);
+
+        cls
+    }};
 }
 
 #[derive(Debug)]
@@ -139,7 +207,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         //     KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED,
         //     &[JValue::Bool(1)],
         //     l,
-        //     UnableToGenerateKey
+        //     HardwareBackedKeysAreNotSupported
         // )?;
 
         let builder = jni_call_method!(
@@ -260,8 +328,6 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             l,
             UnableToGetKeyPairById
         )?;
-
-        let key_pair_cls = jni_find_class!(env, KEY_PAIR, UnableToGetKeyPairById)?;
 
         let key_pair = jni_new_object!(
             env,
