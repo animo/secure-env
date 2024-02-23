@@ -4,6 +4,7 @@ use crate::{
     KeyOps, SecureEnvironmentOps,
 };
 use jni::objects::{JByteArray, JObject, JValue};
+use paste::paste;
 
 lazy_static::lazy_static! {
     pub static ref JAVA_VM: jni::JavaVM =
@@ -44,7 +45,8 @@ macro_rules! jni_handle_error {
 
 macro_rules! jni_call_method {
     ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
-        $env.call_method($cls, $method, concat_idents!($method, _SIG), $args)
+        paste! {
+        $env.call_method($cls, $method, [<$method _SIG>], $args)
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
             .and_then(|v| {
                 jni_handle_error!($env, $err);
@@ -52,6 +54,7 @@ macro_rules! jni_call_method {
                 v.$ret_typ()
                     .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
             })
+        }
     };
 
     ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
@@ -60,12 +63,13 @@ macro_rules! jni_call_method {
 }
 
 macro_rules! jni_call_static_method {
-    ($env:expr, $cls:ident, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {{
+    ($env:expr, $cls:ident, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
+        paste! {{
         let res = $env
             .call_static_method(
-                concat_idents!($cls, _CLS),
+                [<$cls _CLS>],
                 $method,
-                concat_idents!($method, _SIG),
+                [<$method _SIG>],
                 $args,
             )
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
@@ -79,7 +83,8 @@ macro_rules! jni_call_static_method {
         jni_handle_error!($env, $err);
 
         res
-    }};
+        }}
+    };
 
     ($env:expr, $cls:ident, $method:ident, $ret_typ:ident, $err:ident) => {
         jni_call_static_method!($env, $cls, $method, &[], $ret_typ, $err)
@@ -87,9 +92,10 @@ macro_rules! jni_call_static_method {
 }
 
 macro_rules! jni_get_static_field {
-    ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {{
+    ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
+        paste! {{
         let field = $env
-            .get_static_field($cls, $method, concat_idents!($method, _SIG))
+            .get_static_field($cls, $method, [<$method _SIG>])
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
             .and_then(|v| {
                 jni_handle_error!($env, $err);
@@ -101,15 +107,17 @@ macro_rules! jni_get_static_field {
         jni_handle_error!($env, $err);
 
         field
-    }};
+        }}
+    };
 }
 
 macro_rules! jni_new_object {
-    ($env:expr, $cls:ident, $args:expr, $err:ident) => {{
+    ($env:expr, $cls:ident, $args:expr, $err:ident) => {
+        paste! {{
         let obj = $env
             .new_object(
-                concat_idents!($cls, _CLS),
-                concat_idents!($cls, _CTOR_SIG),
+                [<$cls _CLS>],
+                [<$cls _CTOR_SIG>],
                 $args,
             )
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())));
@@ -117,19 +125,22 @@ macro_rules! jni_new_object {
         jni_handle_error!($env, $err);
 
         obj
-    }};
+        }}
+    };
 }
 
 macro_rules! jni_find_class {
-    ($env:expr, $cls:ident, $err:ident) => {{
+    ($env:expr, $cls:ident, $err:ident) => {
+        paste! {{
         let cls = $env
-            .find_class(concat_idents!($cls, _CLS))
+            .find_class([<$cls _CLS>])
             .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())));
 
         jni_handle_error!($env, $err);
 
         cls
-    }};
+        }}
+    };
 }
 
 #[derive(Debug)]
@@ -142,7 +153,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
 
         let ctx = ndk_context::android_context().context() as jni::sys::jobject;
-        if ctx.is_null() || !ctx.is_aligned() {
+        if ctx.is_null() {
             return Err(SecureEnvError::UnableToGenerateKey(Some(
                 "Could not acquire context. Null, or unaligned pointer, was found".to_owned(),
             )));

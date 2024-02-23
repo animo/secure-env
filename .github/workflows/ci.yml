@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  RUST_VERSION: "nightly"
+  RUST_VERSION: "1.69"
 
 jobs:
   format:
