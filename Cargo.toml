@@ -2,20 +2,29 @@
 name = "secure-env"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+authors = ["Berend Sliedrecht <sliedrecht@berend.io>"]
+description = "secure-env is a wrapper library around the Android KeyStore and the iOS Security Framework for key creation and sign operations using the Secure Element"
+repository = "https://github.com/animo/secure-env"
+keywords = ["cryptography", "hsm", "security", "secure-elements", "keystore", "security-framework"]
+categories = ["cryptography"]
+
+[badges]
+maintenance = { status = "actively-developed" }
 
 [lib]
-name = "secure_env"
 crate-type = ["cdylib", "rlib"]
+name = "secure_env"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = { version = "2.9.2", features = ["OSX_10_12"] }
 p256 = { version = "0.13.2", features = ["ecdsa-core"] }
+security-framework = { version = "2.9.2", features = ["OSX_10_12"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.5.0", features = ["native-activity"] }
 jni = { version = "0.21.1", features = ["invocation"] }
-ndk-context = "0.1.1"
 lazy_static = "1.4.0"
+ndk-context = "0.1.1"
 
 [dependencies]
 thiserror = "1.0.50"
