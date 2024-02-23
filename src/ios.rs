@@ -2,8 +2,8 @@ use crate::{
     error::{SecureEnvError, SecureEnvResult},
     KeyOps, SecureEnvironmentOps,
 };
-use p256::elliptic_curve::group::GroupEncoding;
-use security_framework::key::{GenerateKeyOptions, KeyType, SecKey, Token};
+use p256::{ecdsa::Signature, elliptic_curve::group::GroupEncoding};
+use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token};
 
 /// Unit struct that can be used to create and get keypairs by id
 ///
@@ -52,13 +52,45 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 ///
 /// # Examples
 ///
+/// ## Get the public Key
+///
 /// ```
 /// use secure_env::{SecureEnvironment, SecureEnvironmentOps, Key, KeyOps};
 ///
 /// let key = SecureEnvironment::generate_keypair("documentation-public-key-token").unwrap();
 /// let public_key_bytes = key.get_public_key().unwrap();
+///
+/// assert_eq!(public_key_bytes.len(), 33);
 /// ```
 ///
+/// ## Sign a message
+///
+/// ```
+/// use secure_env::{SecureEnvironment, SecureEnvironmentOps, Key, KeyOps};
+///
+/// let key = SecureEnvironment::generate_keypair("documentation-sign-key-token").unwrap();
+/// let signature = key.sign(b"Hello World").unwrap();
+///
+/// assert_eq!(signature.len(), 64);
+/// ```
+///
+/// ## Verify the signed message with `askar_crypto`
+///
+/// ```
+/// use secure_env::{SecureEnvironment, SecureEnvironmentOps, Key, KeyOps};
+/// use askar_crypto::{alg::p256::P256KeyPair, repr::KeyPublicBytes};
+///
+/// let msg = b"Hello World!";
+/// let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
+///
+/// let public_key = key.get_public_key().unwrap();
+/// let signature = key.sign(b"Hello World!").unwrap();
+///
+/// let verify_key = P256KeyPair::from_public_bytes(&public_key).unwrap();
+/// let is_signature_valid = verify_key.verify_signature(msg, &signature);
+///
+/// assert!(is_signature_valid);
+/// ```
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Key(SecKey);
 
@@ -92,13 +124,28 @@ impl KeyOps for Key {
     }
 
     fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
-        todo!()
+        // Sign the message with the `der` format
+        let der_sig = self
+            .0
+            .create_signature(Algorithm::ECDSASignatureMessageX962SHA256, msg)
+            .map_err(|e| SecureEnvError::UnableToCreateSignature(Some(e.to_string())))?;
+
+        // Convert the `ASN.1 der` format signature
+        let signature = Signature::from_der(&der_sig)
+            .map_err(|e| SecureEnvError::UnableToCreateSignature(Some(e.to_string())))?;
+
+        // Convert the signature to a byte representation
+        let signature = signature.to_vec();
+
+        Ok(signature)
     }
 }
 
 #[cfg(all(test, any(target_os = "macos", target_os = "ios")))]
 mod test {
     use std::ptr::addr_of;
+
+    use askar_crypto::{alg::p256::P256KeyPair, repr::KeyPublicBytes};
 
     use super::*;
 
@@ -114,5 +161,28 @@ mod test {
         let public_key_bytes = key.get_public_key().unwrap();
 
         assert_eq!(public_key_bytes.len(), 33);
+    }
+
+    #[test]
+    fn sign() {
+        let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
+
+        let signature = key.sign(b"Hello World!").unwrap();
+
+        assert_eq!(signature.len(), 64);
+    }
+
+    #[test]
+    fn sign_and_external_verification() {
+        let msg = b"Hello World!";
+        let key = SecureEnvironment::generate_keypair("my-test-sign-key").unwrap();
+
+        let public_key = key.get_public_key().unwrap();
+        let signature = key.sign(b"Hello World!").unwrap();
+
+        let verify_key = P256KeyPair::from_public_bytes(&public_key).unwrap();
+        let is_signature_valid = verify_key.verify_signature(msg, &signature);
+
+        assert!(is_signature_valid);
     }
 }
