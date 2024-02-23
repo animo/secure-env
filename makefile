@@ -17,4 +17,5 @@ test-android:
 	(cd examples/android && cargo apk run)
 
 test-ios:
+	cargo build --target=aarch64-apple-ios-sim
 	(cd examples/ios && cargo xcodebuild b && cargo xcodebuild o)
