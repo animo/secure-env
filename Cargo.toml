@@ -2,6 +2,7 @@
 name = "secure-env"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.69"
 license = "Apache-2.0"
 authors = ["Berend Sliedrecht <sliedrecht@berend.io>"]
 description = "secure-env is a wrapper library around the Android KeyStore and the iOS Security Framework for key creation and sign operations using the Secure Element"
@@ -25,6 +26,7 @@ android-activity = { version = "0.5.0", features = ["native-activity"] }
 jni = { version = "0.21.1", features = ["invocation"] }
 lazy_static = "1.4.0"
 ndk-context = "0.1.1"
+paste = "1.0.14"
 
 [dependencies]
 thiserror = "1.0.50"
