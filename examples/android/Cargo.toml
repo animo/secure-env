@@ -16,7 +16,7 @@ name = "android"
 crate-type = ["cdylib"]
 
 [dependencies]
-secure-env = { path = "../.." }
+mobile_tests = { path = "../mobile_tests" }
 android-activity = { version = "0.5.0", features = ["native-activity"] }
 android_logger = "0.13.2"
 jni = { version = "0.21.1", features = ["invocation"] }

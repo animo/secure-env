@@ -4,11 +4,10 @@ use crate::{
 };
 use p256::{ecdsa::Signature, elliptic_curve::group::GroupEncoding};
 use security_framework::{
-    access_control::SecAccessControl,
     item::{ItemClass, ItemSearchOptions, KeyClass, Location, SearchResult},
     key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token},
-    passwords_options::AccessControlOptions,
 };
+use std::any::Any;
 
 /// Unit struct that can be used to create and get keypairs by id
 ///
@@ -71,20 +70,38 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         let search_result = ItemSearchOptions::new()
             // Search by the provided label
             .label(&id)
+            // Load the reference, not the actual data
             .load_refs(true)
+            // Looking for a `Key` instance
             .class(ItemClass::key())
+            // We want access to the private key
             .key_class(KeyClass::private())
+            // Search the keychain
             .search()
-            .unwrap();
+            .map_err(|_| {
+                SecureEnvError::UnableToGetKeyPairById(Some(format!(
+                    "Key reference with id: '{id}' not found."
+                )))
+            })?;
 
-        let result = search_result.get(0).unwrap();
+        let result = search_result
+            .first()
+            .ok_or(SecureEnvError::UnableToGetKeyPairById(Some(format!(
+                "Key reference with id: '{id}' not found."
+            ))))?;
 
         match result {
             SearchResult::Ref(r) => match r {
-                security_framework::item::Reference::Key(k) => return Ok(Key(k.to_owned())),
-                _ => unreachable!(),
+                security_framework::item::Reference::Key(k) => Ok(Key(k.to_owned())),
+                a => Err(SecureEnvError::UnableToGetKeyPairById(Some(format!(
+                    "Found Reference, but not of key instance. Found {:?}",
+                    a.type_id()
+                )))),
             },
-            _ => unreachable!(),
+            a => Err(SecureEnvError::UnableToGetKeyPairById(Some(format!(
+                "Did not find reference, instead  found {:?}",
+                a.type_id()
+            )))),
         }
     }
 }
