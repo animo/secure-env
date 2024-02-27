@@ -6,11 +6,11 @@ adb uninstall id.animo.example.android || true
 adb install -r "$1"
 adb shell am start -a android.intent.action.MAIN -n "id.animo.example.android/android.app.NativeActivity"
 
-sleep 30
+sleep 10
 
-adb logcat RustStdoutStderr:D '*:S' | tee ~/logcat.log
+LOG=$(adb logcat -d RustStdoutStderr:D '*:S')
 
-if grep 'RustStdoutStderr' ~/logcat.log;
+if echo $LOG | grep 'RustStdoutStderr';
 then
     echo "App running"
 else
@@ -18,10 +18,12 @@ else
     exit 1
 fi
 
-MSG=$(grep -e 'panicked' "$HOME"/logcat.log)
-if [ -z "${MSG}" ]; then
-  echo "::error:: Rust panicked! Tests failed. Logs will be uploaded"
-  exit 1
-else
+MSG=$(echo $LOG | grep 'panicked')
+if [ -z "$MSG" ]; then
+  echo "::success:: All tests passed!"
   exit 0
+else
+  echo "::error:: Rust panicked! Tests failed. Logs will be uploaded"
+  echo $LOG >> ~/logcat.log
+  exit 1
 fi
