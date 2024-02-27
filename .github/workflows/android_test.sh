@@ -19,8 +19,8 @@ else
 fi
 
 if [ -n "$HAS_ERROR" ]; then
+  cat $LOG
   echo "::error:: Rust panicked! Tests failed. Logs will be uploaded"
-  echo $LOG >> ~/logcat.log
   exit 1
 else
   echo "::success:: All tests passed!"
