@@ -4,9 +4,8 @@ use crate::{
     KeyOps, SecureEnvironmentOps,
 };
 use jni::objects::{JByteArray, JObject, JString, JValue};
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::{elliptic_curve::sec1::ToEncodedPoint, ecdsa::Signature};
 use paste::paste;
-use secp256k1::ecdsa::Signature;
 use x509_parser::{prelude::FromDer, x509::SubjectPublicKeyInfo};
 
 lazy_static::lazy_static! {
@@ -525,8 +524,10 @@ impl KeyOps for Key {
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
         let signature = Signature::from_der(&signature).unwrap();
-        let signature = signature.serialize_compact();
+        let r = signature.r();
+        let s = signature.s();
+        let compact_signature = [r.to_bytes(), s.to_bytes()].concat();
 
-        Ok(signature.to_vec())
+        Ok(compact_signature)
     }
 }
