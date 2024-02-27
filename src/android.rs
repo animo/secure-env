@@ -3,8 +3,11 @@ use crate::{
     jni_tokens::*,
     KeyOps, SecureEnvironmentOps,
 };
-use jni::objects::{JByteArray, JObject, JValue};
+use jni::objects::{JByteArray, JObject, JString, JValue};
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 use paste::paste;
+use secp256k1::ecdsa::Signature;
+use x509_parser::{prelude::FromDer, x509::SubjectPublicKeyInfo};
 
 lazy_static::lazy_static! {
     pub static ref JAVA_VM: jni::JavaVM =
@@ -422,22 +425,39 @@ impl KeyOps for Key {
             .attach_current_thread_as_daemon()
             .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
 
-        let public_key =
-            jni_call_method!(env, &self.0, KEY_PAIR_GET_PUBLIC, l, UnableToGetPublicKey)?;
+        let p = jni_call_method!(env, &self.0, KEY_PAIR_GET_PUBLIC, l, UnableToGetPublicKey)?;
 
-        let public_key = jni_call_method!(
-            env,
-            &public_key,
-            PUBLIC_KEY_GET_ENCODED,
-            l,
-            UnableToGetPublicKey
-        )?;
+        let public_key =
+            jni_call_method!(env, &p, PUBLIC_KEY_GET_ENCODED, l, UnableToGetPublicKey)?;
+
+        let format =
+            jni_call_method!(env, &p, PUBLIC_KEY_GET_FORMAT, l, UnableToGetPublicKey).unwrap();
+
+        let s = JString::from(format);
+        let f = env.get_string(&s).unwrap();
+        let s = f.to_str().unwrap();
+
+        if s != "X.509" {
+            return Err(SecureEnvError::UnableToGetPublicKey(Some(format!(
+                "Unexpected key format. Expected 'X.509', received: '{s}'"
+            ))));
+        }
 
         let public_key: JByteArray = public_key.into();
 
         let public_key = env
             .convert_byte_array(public_key)
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+
+        let spki = SubjectPublicKeyInfo::from_der(&public_key).unwrap();
+        let public_key = spki.1.subject_public_key.data.to_vec();
+
+        let public_key = p256::PublicKey::from_sec1_bytes(&public_key)
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
+
+        let point = public_key.to_encoded_point(true);
+
+        let public_key = point.to_bytes().to_vec();
 
         Ok(public_key)
     }
@@ -504,6 +524,9 @@ impl KeyOps for Key {
             .convert_byte_array(signature)
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
-        Ok(signature)
+        let signature = Signature::from_der(&signature).unwrap();
+        let signature = signature.serialize_compact();
+
+        Ok(signature.to_vec())
     }
 }
