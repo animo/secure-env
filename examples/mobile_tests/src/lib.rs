@@ -89,6 +89,6 @@ fn test_sign_and_verify_with_askar() {
 
     let is_valid = keypair.verify_signature(msg, &signature);
 
-    assert!(!is_valid);
+    assert!(is_valid);
 
 }
