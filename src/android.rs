@@ -4,7 +4,7 @@ use crate::{
     KeyOps, SecureEnvironmentOps,
 };
 use jni::objects::{JByteArray, JObject, JString, JValue};
-use p256::{elliptic_curve::sec1::ToEncodedPoint, ecdsa::Signature};
+use p256::{ecdsa::Signature, elliptic_curve::sec1::ToEncodedPoint};
 use paste::paste;
 use x509_parser::{prelude::FromDer, x509::SubjectPublicKeyInfo};
 
