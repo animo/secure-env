@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  RUST_VERSION: "1.69"
+  RUST_VERSION: "1.70"
 
 jobs:
   format:
