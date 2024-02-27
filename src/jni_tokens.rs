@@ -112,6 +112,9 @@ pub static KEY_PAIR_GET_PRIVATE_SIG: &str = "()Ljava/security/PrivateKey;";
 pub static PUBLIC_KEY_GET_ENCODED: &str = "getEncoded";
 pub static PUBLIC_KEY_GET_ENCODED_SIG: &str = "()[B";
 
+pub static PUBLIC_KEY_GET_FORMAT: &str = "getFormat";
+pub static PUBLIC_KEY_GET_FORMAT_SIG: &str = "()Ljava/lang/String;";
+
 // Signature
 
 pub static SIGNATURE_CLS: &str = "java/security/Signature";

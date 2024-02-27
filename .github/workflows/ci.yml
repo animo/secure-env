@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  RUST_VERSION: "1.69"
+  RUST_VERSION: "1.74"
 
 jobs:
   format:
@@ -106,3 +106,33 @@ jobs:
           cache-on-failure: true
 
       - run: cargo check --target=${{ matrix.target }}
+
+
+  test-android:
+    name: Test Android
+
+    # Using macos runner for hardware acceleration
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-linux-android
+
+      - name: Install Cargo APK
+        run: cargo install cargo-apk
+
+      - name: Build Android Application
+        run: cargo apk build --manifest-path ./examples/android/Cargo.toml --target=x86_64-linux-android
+
+      - name: Run Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          script: ./.github/workflows/android_test.sh examples/android/target/debug/apk/android.apk
