@@ -107,12 +107,11 @@ jobs:
 
       - run: cargo check --target=${{ matrix.target }}
 
-
   test-android:
     name: Test Android
 
     # Using macos runner for hardware acceleration
-    runs-on: macos-latest
+    runs-on: macos-13
 
     steps:
       - uses: actions/checkout@v4
@@ -136,3 +135,28 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           script: ./.github/workflows/android_test.sh examples/android/target/debug/apk/android.apk
+
+  test-ios:
+    name: Test iOS
+
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-apple-ios-sim, aarch64-apple-ios, x86_64-apple-ios
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Install Cargo Xcodebuild
+        run: cargo install cargo-xcodebuild
+
+      - uses: futureware-tech/simulator-action@v3
+        with:
+          model: "iPhone 15"
+      - run: cargo xcodebuild run --manifest-path examples/ios/Cargo.toml
