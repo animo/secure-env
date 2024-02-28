@@ -33,7 +33,7 @@ macro_rules! jni_handle_error {
                     &[],
                 )
                 .and_then(|v| v.l())
-                .unwrap();
+                .map_err($crate::error::SecureEnvError::UnableToCreateJavaValue)?;
 
             let msg_rust: String = $env
                 .get_string(&message.into())
@@ -429,16 +429,19 @@ impl KeyOps for Key {
         let public_key =
             jni_call_method!(env, &p, PUBLIC_KEY_GET_ENCODED, l, UnableToGetPublicKey)?;
 
-        let format =
-            jni_call_method!(env, &p, PUBLIC_KEY_GET_FORMAT, l, UnableToGetPublicKey).unwrap();
+        let format = jni_call_method!(env, &p, PUBLIC_KEY_GET_FORMAT, l, UnableToGetPublicKey)?;
 
-        let s = JString::from(format);
-        let f = env.get_string(&s).unwrap();
-        let s = f.to_str().unwrap();
+        let format = JString::from(format);
+        let format = env
+            .get_string(&format)
+            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+        let format = format
+            .to_str()
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
 
-        if s != "X.509" {
+        if format != "X.509" {
             return Err(SecureEnvError::UnableToGetPublicKey(Some(format!(
-                "Unexpected key format. Expected 'X.509', received: '{s}'"
+                "Unexpected key format. Expected 'X.509', received: '{format}'"
             ))));
         }
 
@@ -448,15 +451,17 @@ impl KeyOps for Key {
             .convert_byte_array(public_key)
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
-        let spki = SubjectPublicKeyInfo::from_der(&public_key).unwrap();
-        let public_key = spki.1.subject_public_key.data.to_vec();
-
-        let public_key = p256::PublicKey::from_sec1_bytes(&public_key)
+        let spki = SubjectPublicKeyInfo::from_der(&public_key)
             .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
 
-        let point = public_key.to_encoded_point(true);
+        let spki_data = spki.1.subject_public_key.data;
 
-        let public_key = point.to_bytes().to_vec();
+        let public_key = p256::PublicKey::from_sec1_bytes(&spki_data)
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
+
+        let encoded_point = public_key.to_encoded_point(true);
+
+        let public_key = encoded_point.to_bytes().to_vec();
 
         Ok(public_key)
     }
@@ -523,7 +528,9 @@ impl KeyOps for Key {
             .convert_byte_array(signature)
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
-        let signature = Signature::from_der(&signature).unwrap();
+        let signature = Signature::from_der(&signature)
+            .map_err(|e| SecureEnvError::UnableToCreateSignature(Some(e.to_string())))?;
+
         let r = signature.r();
         let s = signature.s();
         let compact_signature = [r.to_bytes(), s.to_bytes()].concat();
