@@ -7,7 +7,7 @@ license = "Apache-2.0"
 authors = ["Berend Sliedrecht <sliedrecht@berend.io>"]
 description = "secure-env is a wrapper library around the Android KeyStore and the iOS Security Framework for key creation and sign operations using the Secure Element"
 repository = "https://github.com/animo/secure-env"
-keywords = ["cryptography", "hsm", "security", "secure-elements", "keystore", "security-framework"]
+keywords = ["cryptography", "hsm", "security", "keystore", "security-framework"]
 categories = ["cryptography"]
 
 [badges]
