@@ -1,5 +1,8 @@
 name: Crates.io Release
 
+env:
+  RUST_VERSION: "1.74"
+
 on:
   workflow_dispatch:
     
@@ -10,7 +13,11 @@ jobs:
 
     steps:
         - uses: actions/checkout@v4
-        - uses: actions-rs/toolchain@v1
+
+        - name: Install Rust Toolchain
+          uses: dtolnay/rust-toolchain@stable
           with:
-            toolchain: stable
-        - run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+            toolchain: ${{ env.RUST_VERSION }}
+            targets: x86_64-linux-android
+
+        - run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --target=x86_64-linux-android
