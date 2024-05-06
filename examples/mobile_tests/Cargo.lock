@@ -65,6 +65,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc7eb209b1518d6bb87b283c20095f5228ecda460da70b44f0802523dea6da04"
 
 [[package]]
+name = "animo-secure-env"
+version = "0.1.1"
+dependencies = [
+ "android-activity",
+ "jni",
+ "lazy_static",
+ "ndk-context",
+ "p256",
+ "paste",
+ "security-framework",
+ "thiserror",
+ "x509-parser",
+]
+
+[[package]]
 name = "askar-crypto"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -754,9 +769,9 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 name = "mobile_tests"
 version = "0.1.0"
 dependencies = [
+ "animo-secure-env",
  "askar-crypto",
  "p256",
- "secure-env",
  "uuid",
 ]
 
@@ -1090,21 +1105,6 @@ dependencies = [
  "pkcs8",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "secure-env"
-version = "0.1.0"
-dependencies = [
- "android-activity",
- "jni",
- "lazy_static",
- "ndk-context",
- "p256",
- "paste",
- "security-framework",
- "thiserror",
- "x509-parser",
 ]
 
 [[package]]

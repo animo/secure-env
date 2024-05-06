@@ -7,7 +7,6 @@ use security_framework::{
     item::{ItemClass, ItemSearchOptions, KeyClass, Location, SearchResult},
     key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token},
 };
-use std::any::Any;
 
 /// Unit struct that can be used to create and get keypairs by id
 ///
@@ -59,7 +58,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         // Generate a key using the dictionary
         // This also passes along any information the OS provides when an error occurs
         let key = SecKey::generate(dict)
-            .map_err(|e| SecureEnvError::UnableToGenerateKey(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToGenerateKey(e.to_string()))?;
 
         Ok(Key(key))
     }
@@ -79,29 +78,27 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             // Search the keychain
             .search()
             .map_err(|_| {
-                SecureEnvError::UnableToGetKeyPairById(Some(format!(
+                SecureEnvError::UnableToGetKeyPairById(format!(
                     "Key reference with id: '{id}' not found."
-                )))
+                ))
             })?;
 
         let result = search_result
             .first()
-            .ok_or(SecureEnvError::UnableToGetKeyPairById(Some(format!(
+            .ok_or(SecureEnvError::UnableToGetKeyPairById(format!(
                 "Key reference with id: '{id}' not found."
-            ))))?;
+            )))?;
 
         match result {
             SearchResult::Ref(r) => match r {
                 security_framework::item::Reference::Key(k) => Ok(Key(k.to_owned())),
-                a => Err(SecureEnvError::UnableToGetKeyPairById(Some(format!(
-                    "Found Reference, but not of key instance. Found {:?}",
-                    a.type_id()
-                )))),
+                _ => Err(SecureEnvError::UnableToGetKeyPairById(format!(
+                    "Found Reference, but not of key instance",
+                ))),
             },
-            a => Err(SecureEnvError::UnableToGetKeyPairById(Some(format!(
-                "Did not find reference, instead  found {:?}",
-                a.type_id()
-            )))),
+            _ => Err(SecureEnvError::UnableToGetKeyPairById(format!(
+                "Did not find search reference",
+            ))),
         }
     }
 }
@@ -158,22 +155,22 @@ impl KeyOps for Key {
         let public_key = self
             .0
             .public_key()
-            .ok_or(SecureEnvError::UnableToGetPublicKey(Some(
+            .ok_or(SecureEnvError::UnableToGetPublicKey(
                 "No public key reference found on the internal `SecKey`".to_owned(),
-            )))?;
+            ))?;
 
         // Convert the public key reference to the `sec1` format in bytes
         let sec1_bytes = public_key
             .external_representation()
-            .ok_or(SecureEnvError::UnableToGetPublicKey(Some(
+            .ok_or(SecureEnvError::UnableToGetPublicKey(
                 "Could not create an external representation for the public key on the `SecKey`"
                     .to_owned(),
-            )))?
+            ))?
             .to_vec();
 
         // Instantiate a P256 public key from the `sec1` bytes
         let public_key = p256::PublicKey::from_sec1_bytes(&sec1_bytes)
-            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(e.to_string()))?;
 
         // Get the affine point of the public key and convert this into a byte representation
         let public_key = public_key.as_affine().to_bytes().to_vec();
@@ -186,11 +183,11 @@ impl KeyOps for Key {
         let der_sig = self
             .0
             .create_signature(Algorithm::ECDSASignatureMessageX962SHA256, msg)
-            .map_err(|e| SecureEnvError::UnableToCreateSignature(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToCreateSignature(e.to_string()))?;
 
         // Convert the `ASN.1 der` format signature
         let signature = Signature::from_der(&der_sig)
-            .map_err(|e| SecureEnvError::UnableToCreateSignature(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToCreateSignature(e.to_string()))?;
 
         // Convert the signature to a byte representation
         let signature = signature.to_vec();
