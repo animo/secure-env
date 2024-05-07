@@ -1,8 +1,8 @@
 [package]
 name = "animo-secure-env"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
-rust-version = "1.68"
+rust-version = "1.67"
 license = "Apache-2.0"
 authors = ["Berend Sliedrecht <sliedrecht@berend.io>"]
 description = "secure-env is a wrapper library around the Android KeyStore and the iOS Security Framework for key creation and sign operations using the Secure Element"
@@ -32,7 +32,7 @@ name = "secure_env"
 security-framework = { version = "2.9.2" }
 
 [target.'cfg(target_os = "android")'.dependencies]
-android-activity = { version = "0.5.0", features = ["native-activity"] }
+android-activity = { version = "0.4.2", features = ["native-activity"] }
 jni = { version = "0.21.1", features = ["invocation"] }
 lazy_static = "1.4.0"
 ndk-context = "0.1.1"
