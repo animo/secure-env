@@ -17,13 +17,13 @@ macro_rules! jni_handle_error {
     ($env:expr, $err:ident) => {
         if $env
             .exception_check()
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?
+            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?
         {
             let throwable = $env
                 .exception_occurred()
-                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
+                .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?;
             $env.exception_clear()
-                .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))?;
+                .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?;
 
             let message = $env
                 .call_method(
@@ -40,7 +40,7 @@ macro_rules! jni_handle_error {
                 .map_err($crate::error::SecureEnvError::UnableToCreateJavaValue)?
                 .into();
 
-            return Err($crate::error::SecureEnvError::$err(Some(msg_rust)));
+            return Err($crate::error::SecureEnvError::$err(msg_rust));
         }
     };
 }
@@ -49,12 +49,12 @@ macro_rules! jni_call_method {
     ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
         paste! {
         $env.call_method($cls, $method, [<$method _SIG>], $args)
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
             .and_then(|v| {
                 jni_handle_error!($env, $err);
 
                 v.$ret_typ()
-                    .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
             })
         }
     };
@@ -74,12 +74,12 @@ macro_rules! jni_call_static_method {
                 [<$method _SIG>],
                 $args,
             )
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
             .and_then(|v| {
                 jni_handle_error!($env, $err);
 
                 v.$ret_typ()
-                    .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
             });
 
         jni_handle_error!($env, $err);
@@ -98,12 +98,12 @@ macro_rules! jni_get_static_field {
         paste! {{
         let field = $env
             .get_static_field($cls, $method, [<$method _SIG>])
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
             .and_then(|v| {
                 jni_handle_error!($env, $err);
 
                 v.$ret_typ()
-                    .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())))
+                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
             });
 
         jni_handle_error!($env, $err);
@@ -122,7 +122,7 @@ macro_rules! jni_new_object {
                 [<$cls _CTOR_SIG>],
                 $args,
             )
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())));
+            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()));
 
         jni_handle_error!($env, $err);
 
@@ -136,7 +136,7 @@ macro_rules! jni_find_class {
         paste! {{
         let cls = $env
             .find_class([<$cls _CLS>])
-            .map_err(|e| $crate::error::SecureEnvError::$err(Some(e.to_string())));
+            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()));
 
         jni_handle_error!($env, $err);
 
@@ -156,9 +156,9 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         let ctx = ndk_context::android_context().context() as jni::sys::jobject;
         if ctx.is_null() {
-            return Err(SecureEnvError::UnableToGenerateKey(Some(
+            return Err(SecureEnvError::UnableToGenerateKey(
                 "Could not acquire context. Null, or unaligned pointer, was found".to_owned(),
-            )));
+            ));
         }
         let ctx = unsafe { JObject::from_raw(ctx) };
 
@@ -276,10 +276,10 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             )?;
 
             if !has_device_unlocked_keystore_support {
-                return Err(SecureEnvError::UnableToGenerateKey(Some(
+                return Err(SecureEnvError::UnableToGenerateKey(
                     "Unable to generate keypair. Device has insufficient keystore support"
                         .to_owned(),
-                )));
+                ));
             }
 
             builder
@@ -437,12 +437,12 @@ impl KeyOps for Key {
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
         let format = format
             .to_str()
-            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(e.to_string()))?;
 
         if format != "X.509" {
-            return Err(SecureEnvError::UnableToGetPublicKey(Some(format!(
+            return Err(SecureEnvError::UnableToGetPublicKey(format!(
                 "Unexpected key format. Expected 'X.509', received: '{format}'"
-            ))));
+            )));
         }
 
         let public_key: JByteArray = public_key.into();
@@ -452,12 +452,12 @@ impl KeyOps for Key {
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
         let spki = SubjectPublicKeyInfo::from_der(&public_key)
-            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(e.to_string()))?;
 
         let spki_data = spki.1.subject_public_key.data;
 
         let public_key = p256::PublicKey::from_sec1_bytes(&spki_data)
-            .map_err(|e| SecureEnvError::UnableToGetPublicKey(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToGetPublicKey(e.to_string()))?;
 
         let encoded_point = public_key.to_encoded_point(true);
 
@@ -529,7 +529,7 @@ impl KeyOps for Key {
             .map_err(SecureEnvError::UnableToCreateJavaValue)?;
 
         let signature = Signature::from_der(&signature)
-            .map_err(|e| SecureEnvError::UnableToCreateSignature(Some(e.to_string())))?;
+            .map_err(|e| SecureEnvError::UnableToCreateSignature(e.to_string()))?;
 
         let r = signature.r();
         let s = signature.s();

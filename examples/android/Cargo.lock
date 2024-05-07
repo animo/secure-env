@@ -105,6 +105,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "animo-secure-env"
+version = "0.2.0"
+dependencies = [
+ "android-activity",
+ "jni",
+ "lazy_static",
+ "ndk-context",
+ "p256",
+ "paste",
+ "security-framework",
+ "thiserror",
+ "x509-parser",
+]
+
+[[package]]
 name = "askar-crypto"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -804,9 +819,9 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 name = "mobile_tests"
 version = "0.1.0"
 dependencies = [
+ "animo-secure-env",
  "askar-crypto",
  "p256",
- "secure-env",
  "uuid",
 ]
 
@@ -1178,21 +1193,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "secure-env"
-version = "0.1.0"
-dependencies = [
- "android-activity",
- "jni",
- "lazy_static",
- "ndk-context",
- "p256",
- "paste",
- "security-framework",
- "thiserror",
- "x509-parser",
-]
-
-[[package]]
 name = "security-framework"
 version = "2.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1381,9 +1381,9 @@ checksum = "3550f4e9685620ac18a50ed434eb3aec30db8ba93b0287467bca5826ea25baf1"
 
 [[package]]
 name = "toml_edit"
-version = "0.21.1"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
+checksum = "d34d383cd00a163b4a5b85053df514d45bc330f6de7737edfe0a93311d1eaa03"
 dependencies = [
  "indexmap",
  "toml_datetime",
