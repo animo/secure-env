@@ -1,8 +1,8 @@
 [package]
 name = "animo-secure-env"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
-rust-version = "1.69"
+rust-version = "1.68"
 license = "Apache-2.0"
 authors = ["Berend Sliedrecht <sliedrecht@berend.io>"]
 description = "secure-env is a wrapper library around the Android KeyStore and the iOS Security Framework for key creation and sign operations using the Secure Element"
