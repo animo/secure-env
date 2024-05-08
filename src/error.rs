@@ -14,14 +14,13 @@ pub enum SecureEnvError {
 
     #[cfg(target_os = "android")]
     #[error("Unable to attach JVM to thread. Additional info: {0}")]
-    UnableToAttachJVMToThread(jni::errors::Error),
+    UnableToAttachJVMToThread(String),
 
     #[cfg(target_os = "android")]
     #[error("Unable to create java value. Additional info: {0}")]
-    UnableToCreateJavaValue(jni::errors::Error),
+    UnableToCreateJavaValue(String),
 
-    // TODO: check if we can also use this error on iOS.
-    // Otherwise add a cfg target to android only
+    #[cfg(target_os = "android")]
     #[error("Device does not support hardware backed keys. Additional info: {0}")]
     HardwareBackedKeysAreNotSupported(String),
 }
