@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  RUST_VERSION: "1.74"
+  RUST_VERSION: "1.68"
 
 jobs:
   format:
@@ -112,6 +112,10 @@ jobs:
 
     # Using macos runner for hardware acceleration
     runs-on: macos-13
+
+    env:
+      # rust version 1.74 is required here due to cargo-apk -> clap-rs
+      RUST_VERSION: "1.74"
 
     steps:
       - uses: actions/checkout@v4
