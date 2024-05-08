@@ -33,11 +33,13 @@ macro_rules! jni_handle_error {
                     &[],
                 )
                 .and_then(|v| v.l())
-                .map_err($crate::error::SecureEnvError::UnableToCreateJavaValue)?;
+                .map_err(|e| {
+                    $crate::error::SecureEnvError::UnableToCreateJavaValue(e.to_string())
+                })?;
 
             let msg_rust: String = $env
                 .get_string(&message.into())
-                .map_err($crate::error::SecureEnvError::UnableToCreateJavaValue)?
+                .map_err(|e| $crate::error::SecureEnvError::UnableToCreateJavaValue(e.to_string()))?
                 .into();
 
             return Err($crate::error::SecureEnvError::$err(msg_rust));
@@ -152,7 +154,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
     fn generate_keypair(id: impl Into<String>) -> SecureEnvResult<Key> {
         let mut env = JAVA_VM
             .attach_current_thread_as_daemon()
-            .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
+            .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
         let ctx = ndk_context::android_context().context() as jni::sys::jobject;
         if ctx.is_null() {
@@ -166,7 +168,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         let id = env
             .new_string(id)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let purpose_sign = jni_get_static_field!(
             env,
@@ -197,7 +199,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         let args = env
             .new_object_array(1, string_cls, &digest_sha256)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let builder = jni_call_method!(
             env,
@@ -227,7 +229,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         let hardware_keystore_token = env
             .new_string("android.hardware.hardware_keystore")
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         // This has not been documented anywhere that I could find.
         // After some debugging with emulators and multiple real device
@@ -296,11 +298,11 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         let algorithm = env
             .new_string(EC_ALGORITHM)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let provider = env
             .new_string(ANDROID_KEY_STORE_PROVIDER)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let key_pair_generator = jni_call_static_method!(
             env,
@@ -342,16 +344,16 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
     fn get_keypair_by_id(id: impl Into<String>) -> SecureEnvResult<Key> {
         let mut env = JAVA_VM
             .attach_current_thread_as_daemon()
-            .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
+            .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
         let provider = env
             .new_string(ANDROID_KEY_STORE_PROVIDER)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let id = id.into();
         let id = env
             .new_string(id)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let key_store = jni_call_static_method!(
             env,
@@ -422,7 +424,7 @@ impl KeyOps for Key {
     fn get_public_key(&self) -> SecureEnvResult<Vec<u8>> {
         let mut env = JAVA_VM
             .attach_current_thread_as_daemon()
-            .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
+            .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
         let p = jni_call_method!(env, &self.0, KEY_PAIR_GET_PUBLIC, l, UnableToGetPublicKey)?;
 
@@ -434,7 +436,7 @@ impl KeyOps for Key {
         let format = JString::from(format);
         let format = env
             .get_string(&format)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
         let format = format
             .to_str()
             .map_err(|e| SecureEnvError::UnableToGetPublicKey(e.to_string()))?;
@@ -449,7 +451,7 @@ impl KeyOps for Key {
 
         let public_key = env
             .convert_byte_array(public_key)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let spki = SubjectPublicKeyInfo::from_der(&public_key)
             .map_err(|e| SecureEnvError::UnableToGetPublicKey(e.to_string()))?;
@@ -469,11 +471,11 @@ impl KeyOps for Key {
     fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
         let mut env = JAVA_VM
             .attach_current_thread_as_daemon()
-            .map_err(SecureEnvError::UnableToAttachJVMToThread)?;
+            .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
         let algorithm = env
             .new_string(SHA256_WITH_ECDSA_ALGO)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let private_key = jni_call_method!(
             env,
@@ -503,7 +505,7 @@ impl KeyOps for Key {
 
         let b_arr = env
             .byte_array_from_slice(msg)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         jni_call_method!(
             env,
@@ -526,7 +528,7 @@ impl KeyOps for Key {
 
         let signature = env
             .convert_byte_array(signature)
-            .map_err(SecureEnvError::UnableToCreateJavaValue)?;
+            .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
         let signature = Signature::from_der(&signature)
             .map_err(|e| SecureEnvError::UnableToCreateSignature(e.to_string()))?;
