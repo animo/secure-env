@@ -37,8 +37,6 @@ Beneath these bindings it fully relies on `KeyStore`. During key generation, bas
 
 Add the dependency
 
-> NOTE: library is not released, yet.
-
 ```console
 cargo add secure-env
 ```
