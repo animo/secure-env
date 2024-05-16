@@ -14,35 +14,44 @@ lazy_static::lazy_static! {
 }
 
 macro_rules! jni_handle_error {
-    ($env:expr, $err:ident) => {
-        if $env
-            .exception_check()
-            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?
-        {
-            let throwable = $env
-                .exception_occurred()
-                .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?;
-            $env.exception_clear()
-                .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?;
+    ($env:expr, $err:ident, $e:expr) => {
+        match (|| -> $crate::error::SecureEnvResult<()> {
+            if $env
+                .exception_check()
+                .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?
+            {
+                let throwable = $env
+                    .exception_occurred()
+                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?;
+                $env.exception_clear()
+                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))?;
 
-            let message = $env
-                .call_method(
-                    &throwable,
-                    EXCEPTION_TO_STRING,
-                    EXCEPTION_TO_STRING_SIG,
-                    &[],
-                )
-                .and_then(|v| v.l())
-                .map_err(|e| {
-                    $crate::error::SecureEnvError::UnableToCreateJavaValue(e.to_string())
-                })?;
+                let message = $env
+                    .call_method(
+                        &throwable,
+                        EXCEPTION_TO_STRING,
+                        EXCEPTION_TO_STRING_SIG,
+                        &[],
+                    )
+                    .and_then(|v| v.l())
+                    .map_err(|e| {
+                        $crate::error::SecureEnvError::UnableToCreateJavaValue(e.to_string())
+                    })?;
 
-            let msg_rust: String = $env
-                .get_string(&message.into())
-                .map_err(|e| $crate::error::SecureEnvError::UnableToCreateJavaValue(e.to_string()))?
-                .into();
+                let msg_rust: String = $env
+                    .get_string(&message.into())
+                    .map_err(|e| {
+                        $crate::error::SecureEnvError::UnableToCreateJavaValue(e.to_string())
+                    })?
+                    .into();
 
-            return Err($crate::error::SecureEnvError::$err(msg_rust));
+                return Err($crate::error::SecureEnvError::$err(msg_rust));
+            } else {
+                return Err($crate::error::SecureEnvError::$err($e.to_string()));
+            }
+        })() {
+            Ok(_) => $crate::error::SecureEnvError::$err($e.to_string()),
+            Err(e) => e,
         }
     };
 }
@@ -51,13 +60,8 @@ macro_rules! jni_call_method {
     ($env:expr, $cls:expr, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
         paste! {
         $env.call_method($cls, $method, [<$method _SIG>], $args)
-            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
-            .and_then(|v| {
-                jni_handle_error!($env, $err);
-
-                v.$ret_typ()
-                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
-            })
+            .and_then(|v| v.$ret_typ())
+            .map_err(|e| jni_handle_error!($env, $err, e))
         }
     };
 
@@ -69,24 +73,9 @@ macro_rules! jni_call_method {
 macro_rules! jni_call_static_method {
     ($env:expr, $cls:ident, $method:ident, $args:expr, $ret_typ:ident, $err:ident) => {
         paste! {{
-        let res = $env
-            .call_static_method(
-                [<$cls _CLS>],
-                $method,
-                [<$method _SIG>],
-                $args,
-            )
-            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
-            .and_then(|v| {
-                jni_handle_error!($env, $err);
-
-                v.$ret_typ()
-                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
-            });
-
-        jni_handle_error!($env, $err);
-
-        res
+            $env.call_static_method([<$cls _CLS>], $method, [<$method _SIG>], $args)
+                .and_then(|v| v.$ret_typ())
+                .map_err(|e| jni_handle_error!($env, $err, e))
         }}
     };
 
@@ -98,19 +87,9 @@ macro_rules! jni_call_static_method {
 macro_rules! jni_get_static_field {
     ($env:expr, $cls:expr, $method:ident, $ret_typ:ident, $err:ident) => {
         paste! {{
-        let field = $env
-            .get_static_field($cls, $method, [<$method _SIG>])
-            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
-            .and_then(|v| {
-                jni_handle_error!($env, $err);
-
-                v.$ret_typ()
-                    .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()))
-            });
-
-        jni_handle_error!($env, $err);
-
-        field
+            $env.get_static_field($cls, $method, [<$method _SIG>])
+                .and_then(|v| v.$ret_typ())
+                .map_err(|e| jni_handle_error!($env, $err, e))
         }}
     };
 }
@@ -118,17 +97,8 @@ macro_rules! jni_get_static_field {
 macro_rules! jni_new_object {
     ($env:expr, $cls:ident, $args:expr, $err:ident) => {
         paste! {{
-        let obj = $env
-            .new_object(
-                [<$cls _CLS>],
-                [<$cls _CTOR_SIG>],
-                $args,
-            )
-            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()));
-
-        jni_handle_error!($env, $err);
-
-        obj
+            $env.new_object([<$cls _CLS>], [<$cls _CTOR_SIG>], $args)
+                .map_err(|e| jni_handle_error!($env, $err, e))
         }}
     };
 }
@@ -136,13 +106,8 @@ macro_rules! jni_new_object {
 macro_rules! jni_find_class {
     ($env:expr, $cls:ident, $err:ident) => {
         paste! {{
-        let cls = $env
-            .find_class([<$cls _CLS>])
-            .map_err(|e| $crate::error::SecureEnvError::$err(e.to_string()));
-
-        jni_handle_error!($env, $err);
-
-        cls
+            $env.find_class([<$cls _CLS>])
+                .map_err(|e| jni_handle_error!($env, $err, e))
         }}
     };
 }
@@ -287,14 +252,16 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             builder
         };
 
-        let builder = jni_call_method!(
-            env,
-            &builder,
-            KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_PRESENCE_REQUIRED,
-            &[JValue::Bool(1)],
-            l,
-            UnableToGenerateKey
-        )?;
+        // This code is left in as might have to bring it back later on.
+        // For now, everything seems to work without this enabled
+        // let builder = jni_call_method!(
+        //     env,
+        //     &builder,
+        //     KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_PRESENCE_REQUIRED,
+        //     &[JValue::Bool(1)],
+        //     l,
+        //     UnableToGenerateKey
+        // )?;
 
         let algorithm = env
             .new_string(EC_ALGORITHM)
