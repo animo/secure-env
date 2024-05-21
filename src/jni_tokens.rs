@@ -46,11 +46,6 @@ pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED: &str = "setI
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED_SIG: &str =
     "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;";
 
-pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_PRESENCE_REQUIRED: &str =
-    "setUserPresenceRequired";
-pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_PRESENCE_REQUIRED_SIG: &str =
-    "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;";
-
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_BUILD: &str = "build";
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_BUILD_SIG: &str =
     "()Landroid/security/keystore/KeyGenParameterSpec;";

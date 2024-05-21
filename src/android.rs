@@ -122,9 +122,11 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
         let ctx = ndk_context::android_context().context() as jni::sys::jobject;
+
         if ctx.is_null() {
             return Err(SecureEnvError::UnableToGenerateKey(
-                "Could not acquire context. Null, or unaligned pointer, was found".to_owned(),
+                "Could not acquire context. Null, unaligned or invalid pointer was found"
+                    .to_owned(),
             ));
         }
         let ctx = unsafe { JObject::from_raw(ctx) };
@@ -251,17 +253,6 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
             builder
         };
-
-        // This code is left in as might have to bring it back later on.
-        // For now, everything seems to work without this enabled
-        // let builder = jni_call_method!(
-        //     env,
-        //     &builder,
-        //     KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_PRESENCE_REQUIRED,
-        //     &[JValue::Bool(1)],
-        //     l,
-        //     UnableToGenerateKey
-        // )?;
 
         let algorithm = env
             .new_string(EC_ALGORITHM)
