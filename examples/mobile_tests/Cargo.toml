@@ -5,6 +5,6 @@ edition = "2021"
 
 [dependencies]
 uuid = { version = "1.7.0", features = ["v4", "fast-rng"] }
-secure-env = { package = "animo-secure-env", path = "../.." }
+secure-env = { package = "animo-secure-env", path = "../..", features = ["android_testing"] }
 askar-crypto = "0.3.1"
 p256 = "0.13.2"
