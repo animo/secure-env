@@ -13,6 +13,27 @@ lazy_static::lazy_static! {
         unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
 }
 
+/// Android glue code that is called with the pointer to the current activity.
+/// With this pointer we can initialize the jvm which is required for JNI.
+///
+/// Code is a modified version of: [android-activity/src/native_activity/glue.rs](https://github.com/rust-mobile/android-activity/blob/0d299300f4120821ae1fcaaf0276129c512c2c96/android-activity/src/native_activity/glue.rs#L829)
+#[cfg(not(feature = "android_testing"))]
+#[no_mangle]
+extern "C" fn ANativeActivity_onCreate(
+    activity: *mut ndk_sys::ANativeActivity,
+    _saved_state: *const libc::c_void,
+    _saved_state_size: libc::size_t,
+) {
+    let activity_ptr: libc::intptr_t = activity as _;
+    let activity: *mut ndk_sys::ANativeActivity = activity_ptr as *mut _;
+
+    unsafe {
+        let jvm: *mut jni::sys::JavaVM = (*activity).vm;
+        let activity = (*activity).clazz;
+        ndk_context::initialize_android_context(jvm.cast(), activity.cast());
+    }
+}
+
 macro_rules! jni_handle_error {
     ($env:expr, $err:ident, $e:expr) => {
         match (|| -> $crate::error::SecureEnvResult<()> {
@@ -121,16 +142,6 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             .attach_current_thread_as_daemon()
             .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
-        let ctx = ndk_context::android_context().context() as jni::sys::jobject;
-
-        if ctx.is_null() {
-            return Err(SecureEnvError::UnableToGenerateKey(
-                "Could not acquire context. Null, unaligned or invalid pointer was found"
-                    .to_owned(),
-            ));
-        }
-        let ctx = unsafe { JObject::from_raw(ctx) };
-
         let id = id.into();
 
         let id = env
@@ -185,6 +196,16 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             l,
             UnableToGenerateKey
         )?;
+
+        let ctx = ndk_context::android_context().context() as jni::sys::jobject;
+
+        if ctx.is_null() {
+            return Err(SecureEnvError::UnableToGenerateKey(
+                "Could not acquire context. Null, unaligned or invalid pointer was found"
+                    .to_owned(),
+            ));
+        }
+        let ctx = unsafe { JObject::from_raw(ctx) };
 
         let package_manager = jni_call_method!(
             env,
