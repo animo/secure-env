@@ -3,35 +3,36 @@ use crate::{
     jni_tokens::*,
     KeyOps, SecureEnvironmentOps,
 };
-use jni::objects::{JByteArray, JObject, JString, JValue};
+use jni::{
+    objects::{JByteArray, JClass, JObject, JString, JValue},
+    sys::{jint, jobject, JNI_VERSION_1_6},
+    JNIEnv, JavaVM,
+};
+use lazy_static::lazy_static;
+use libc::c_void;
 use p256::{ecdsa::Signature, elliptic_curve::sec1::ToEncodedPoint};
 use paste::paste;
+use std::sync::{Arc, Mutex};
 use x509_parser::{prelude::FromDer, x509::SubjectPublicKeyInfo};
 
-lazy_static::lazy_static! {
-    pub static ref JAVA_VM: jni::JavaVM =
-        unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }.unwrap();
+pub struct AndroidContext(*mut c_void);
+
+unsafe impl Send for AndroidContext {}
+unsafe impl Sync for AndroidContext {}
+
+lazy_static! {
+    static ref JAVA_VM: Arc<Mutex<Option<jni::JavaVM>>> = Arc::new(Mutex::new(None));
 }
 
-/// Android glue code that is called with the pointer to the current activity.
-/// With this pointer we can initialize the jvm which is required for JNI.
-///
-/// Code is a modified version of: [android-activity/src/native_activity/glue.rs](https://github.com/rust-mobile/android-activity/blob/0d299300f4120821ae1fcaaf0276129c512c2c96/android-activity/src/native_activity/glue.rs#L829)
-#[cfg(not(feature = "android_testing"))]
+// Entry point that can be used to set the pointer to the jvm. It has to be called manually from a
+// Java environment,
 #[no_mangle]
-extern "C" fn ANativeActivity_onCreate(
-    activity: *mut ndk_sys::ANativeActivity,
-    _saved_state: *const libc::c_void,
-    _saved_state_size: libc::size_t,
+pub extern "system" fn Java_id_animo_SecureEnvironment_set_1env<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
 ) {
-    let activity_ptr: libc::intptr_t = activity as _;
-    let activity: *mut ndk_sys::ANativeActivity = activity_ptr as *mut _;
-
-    unsafe {
-        let jvm: *mut jni::sys::JavaVM = (*activity).vm;
-        let activity = (*activity).clazz;
-        ndk_context::initialize_android_context(jvm.cast(), activity.cast());
-    }
+    let vm = env.get_java_vm().unwrap();
+    *JAVA_VM.lock().unwrap() = Some(vm);
 }
 
 macro_rules! jni_handle_error {
@@ -138,7 +139,17 @@ pub struct SecureEnvironment;
 
 impl SecureEnvironmentOps<Key> for SecureEnvironment {
     fn generate_keypair(id: impl Into<String>) -> SecureEnvResult<Key> {
-        let mut env = JAVA_VM
+        let jvm = JAVA_VM.lock().map_err(|_| {
+            SecureEnvError::UnableToAttachJVMToThread("Could not acquire lock on JVM".to_owned())
+        })?;
+
+        let jvm = jvm
+            .as_ref()
+            .ok_or(SecureEnvError::UnableToAttachJVMToThread(
+                "JVM has not been set".to_owned(),
+            ))?;
+
+        let mut env = jvm
             .attach_current_thread_as_daemon()
             .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
@@ -197,15 +208,20 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             UnableToGenerateKey
         )?;
 
-        let ctx = ndk_context::android_context().context() as jni::sys::jobject;
-
-        if ctx.is_null() {
-            return Err(SecureEnvError::UnableToGenerateKey(
-                "Could not acquire context. Null, unaligned or invalid pointer was found"
-                    .to_owned(),
-            ));
-        }
-        let ctx = unsafe { JObject::from_raw(ctx) };
+        let current_activity_thread = jni_call_static_method!(
+            env,
+            ACTIVITY_THREAD,
+            ACTIVITY_THREAD_GET_CURRENT_ACTIVITY_THREAD,
+            l,
+            UnableToGenerateKey
+        )?;
+        let ctx = jni_call_method!(
+            env,
+            current_activity_thread,
+            ACTIVITY_THREAD_GET_APPLICATION,
+            l,
+            UnableToGenerateKey
+        )?;
 
         let package_manager = jni_call_method!(
             env,
@@ -317,11 +333,21 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             UnableToGenerateKey
         )?;
 
-        Ok(Key(key))
+        Ok(Key(Arc::new(Mutex::new(*key))))
     }
 
     fn get_keypair_by_id(id: impl Into<String>) -> SecureEnvResult<Key> {
-        let mut env = JAVA_VM
+        let jvm = JAVA_VM.lock().map_err(|_| {
+            SecureEnvError::UnableToAttachJVMToThread("Could not acquire lock on JVM".to_owned())
+        })?;
+
+        let jvm = jvm
+            .as_ref()
+            .ok_or(SecureEnvError::UnableToAttachJVMToThread(
+                "JVM has not been set".to_owned(),
+            ))?;
+
+        let mut env = jvm
             .attach_current_thread_as_daemon()
             .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
@@ -392,25 +418,58 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             UnableToGetKeyPairById
         )?;
 
-        Ok(Key(key_pair))
+        Ok(Key(Arc::new(Mutex::new(*key_pair))))
     }
 }
 
 #[derive(Debug)]
-pub struct Key(JObject<'static>);
+pub struct Key(Arc<Mutex<jobject>>);
+
+unsafe impl Send for Key {}
+unsafe impl Sync for Key {}
+
+impl Key {
+    unsafe fn get_object(&self) -> JObject {
+        let raw = self.0.lock().unwrap();
+        JObject::from_raw(*raw)
+    }
+}
 
 impl KeyOps for Key {
     fn get_public_key(&self) -> SecureEnvResult<Vec<u8>> {
-        let mut env = JAVA_VM
+        let jvm = JAVA_VM.lock().map_err(|_| {
+            SecureEnvError::UnableToAttachJVMToThread("Could not acquire lock on JVM".to_owned())
+        })?;
+
+        let jvm = jvm
+            .as_ref()
+            .ok_or(SecureEnvError::UnableToAttachJVMToThread(
+                "JVM has not been set".to_owned(),
+            ))?;
+
+        let mut env = jvm
             .attach_current_thread_as_daemon()
             .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
 
-        let p = jni_call_method!(env, &self.0, KEY_PAIR_GET_PUBLIC, l, UnableToGetPublicKey)?;
+        let key = unsafe { self.get_object() };
 
-        let public_key =
-            jni_call_method!(env, &p, PUBLIC_KEY_GET_ENCODED, l, UnableToGetPublicKey)?;
+        let public_key = jni_call_method!(env, &key, KEY_PAIR_GET_PUBLIC, l, UnableToGetPublicKey)?;
 
-        let format = jni_call_method!(env, &p, PUBLIC_KEY_GET_FORMAT, l, UnableToGetPublicKey)?;
+        let public_key_encoded = jni_call_method!(
+            env,
+            &public_key,
+            PUBLIC_KEY_GET_ENCODED,
+            l,
+            UnableToGetPublicKey
+        )?;
+
+        let format = jni_call_method!(
+            env,
+            &public_key,
+            PUBLIC_KEY_GET_FORMAT,
+            l,
+            UnableToGetPublicKey
+        )?;
 
         let format = JString::from(format);
         let format = env
@@ -426,7 +485,7 @@ impl KeyOps for Key {
             )));
         }
 
-        let public_key: JByteArray = public_key.into();
+        let public_key: JByteArray = public_key_encoded.into();
 
         let public_key = env
             .convert_byte_array(public_key)
@@ -448,21 +507,28 @@ impl KeyOps for Key {
     }
 
     fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
-        let mut env = JAVA_VM
+        let jvm = JAVA_VM.lock().map_err(|_| {
+            SecureEnvError::UnableToAttachJVMToThread("Could not acquire lock on JVM".to_owned())
+        })?;
+
+        let jvm = jvm
+            .as_ref()
+            .ok_or(SecureEnvError::UnableToAttachJVMToThread(
+                "JVM has not been set".to_owned(),
+            ))?;
+
+        let mut env = jvm
             .attach_current_thread_as_daemon()
             .map_err(|e| SecureEnvError::UnableToAttachJVMToThread(e.to_string()))?;
+
+        let key = unsafe { self.get_object() };
 
         let algorithm = env
             .new_string(SHA256_WITH_ECDSA_ALGO)
             .map_err(|e| SecureEnvError::UnableToCreateJavaValue(e.to_string()))?;
 
-        let private_key = jni_call_method!(
-            env,
-            &self.0,
-            KEY_PAIR_GET_PRIVATE,
-            l,
-            UnableToCreateSignature
-        )?;
+        let private_key =
+            jni_call_method!(env, &key, KEY_PAIR_GET_PRIVATE, l, UnableToCreateSignature)?;
 
         let signature_instance = jni_call_static_method!(
             env,
