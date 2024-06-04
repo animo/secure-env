@@ -125,3 +125,11 @@ pub static SIGNATURE_UPDATE_SIG: &str = "([B)V";
 
 pub static SIGNATURE_SIGN: &str = "sign";
 pub static SIGNATURE_SIGN_SIG: &str = "()[B";
+
+pub static ACTIVITY_THREAD_CLS: &str = "android/app/ActivityThread";
+
+pub static ACTIVITY_THREAD_GET_CURRENT_ACTIVITY_THREAD: &str = "currentActivityThread";
+pub static ACTIVITY_THREAD_GET_CURRENT_ACTIVITY_THREAD_SIG: &str = "()Landroid/app/ActivityThread;";
+
+pub static ACTIVITY_THREAD_GET_APPLICATION: &str = "getApplication";
+pub static ACTIVITY_THREAD_GET_APPLICATION_SIG: &str = "()Landroid/app/Application;";
