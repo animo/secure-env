@@ -33,7 +33,7 @@ default = []
 android_testing = []
 
 [target.'cfg(target_os = "ios")'.dependencies]
-security-framework = { version = "2.9.2" }
+security-framework = { version = "2.11.1", features = ["OSX_10_13"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { version = "0.21.1", features = ["invocation"] }

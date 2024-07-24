@@ -5,8 +5,8 @@ use crate::{
 };
 use jni::{
     objects::{JByteArray, JClass, JObject, JString, JValue},
-    sys::{jint, jobject, JNI_VERSION_1_6},
-    JNIEnv, JavaVM,
+    sys::jobject,
+    JNIEnv,
 };
 use lazy_static::lazy_static;
 use libc::c_void;
@@ -138,7 +138,7 @@ macro_rules! jni_find_class {
 pub struct SecureEnvironment;
 
 impl SecureEnvironmentOps<Key> for SecureEnvironment {
-    fn generate_keypair(id: impl Into<String>) -> SecureEnvResult<Key> {
+    fn generate_keypair(id: impl Into<String>, backed_by_biometrics: bool) -> SecureEnvResult<Key> {
         let jvm = JAVA_VM.lock().map_err(|_| {
             SecureEnvError::UnableToAttachJVMToThread("Could not acquire lock on JVM".to_owned())
         })?;
@@ -178,7 +178,7 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
 
         let digest_sha256 = jni_get_static_field!(
             env,
-            kp_cls,
+            &kp_cls,
             KEY_PROPERTIES_DIGEST_SHA256,
             l,
             UnableToGenerateKey
@@ -207,6 +207,45 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             l,
             UnableToGenerateKey
         )?;
+
+        let builder = if backed_by_biometrics {
+            let auth_biometric_strong = jni_get_static_field!(
+                env,
+                &kp_cls,
+                KEY_PROPERTIES_AUTH_BIOMETRIC_STRONG,
+                i,
+                UnableToGenerateKey
+            )?;
+
+            let builder = jni_call_method!(
+                env,
+                builder,
+                KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_AUTHENTICATION_REQUIRED,
+                &[JValue::Bool(1)],
+                l,
+                UnableToGenerateKey
+            )?;
+
+            let builder = jni_call_method!(
+                env,
+                builder,
+                KEY_GEN_PARAMETER_SPEC_BUILDER_SET_INVALIDATED_BY_BIOMETRIC_ENROLLMENT,
+                &[JValue::Bool(1)],
+                l,
+                UnableToGenerateKey
+            )?;
+
+            jni_call_method!(
+                env,
+                builder,
+                KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_AUTHENTICATION_PARAMETERS,
+                &[JValue::from(0), auth_biometric_strong.into()],
+                l,
+                UnableToGenerateKey
+            )?
+        } else {
+            builder
+        };
 
         let current_activity_thread = jni_call_static_method!(
             env,
@@ -506,6 +545,12 @@ impl KeyOps for Key {
         Ok(public_key)
     }
 
+    /**
+     *
+     * Signing is an operation that requires authentication. Make sure to manually authenticate
+     * before calling this operation
+     *
+     */
     fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
         let jvm = JAVA_VM.lock().map_err(|_| {
             SecureEnvError::UnableToAttachJVMToThread("Could not acquire lock on JVM".to_owned())

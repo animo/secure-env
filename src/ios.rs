@@ -4,8 +4,10 @@ use crate::{
 };
 use p256::{ecdsa::Signature, elliptic_curve::group::GroupEncoding};
 use security_framework::{
+    access_control::{ProtectionMode, SecAccessControl},
     item::{ItemClass, ItemSearchOptions, KeyClass, Location, SearchResult},
     key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token},
+    passwords_options::AccessControlOptions,
 };
 
 /// Unit struct that can be used to create and get keypairs by id
@@ -35,7 +37,7 @@ use security_framework::{
 pub struct SecureEnvironment;
 
 impl SecureEnvironmentOps<Key> for SecureEnvironment {
-    fn generate_keypair(id: impl Into<String>) -> SecureEnvResult<Key> {
+    fn generate_keypair(id: impl Into<String>, backed_by_biometrics: bool) -> SecureEnvResult<Key> {
         // Create a dictionary with the following options:
         let mut opts = GenerateKeyOptions::default();
 
@@ -45,6 +47,23 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         // Set the a token of `SecureEnclave`.
         // Meaning Apple will store the key in a secure element
         let opts = opts.set_token(Token::SecureEnclave);
+
+        let opts = if backed_by_biometrics {
+            // Set the access control so that biometrics via LocalAuthentication.framework is required
+            let access_control = SecAccessControl::create_with_protection(
+                Some(ProtectionMode::AccessibleWhenUnlockedThisDeviceOnly),
+                AccessControlOptions::BIOMETRY_CURRENT_SET.bits(),
+            )
+            .map_err(|_| {
+                SecureEnvError::UnableToGenerateKey(
+                    "Unable to create access control flags".to_owned(),
+                )
+            })?;
+
+            opts.set_access_control(access_control)
+        } else {
+            opts
+        };
 
         // Store the key in the keychain
         let opts = opts.set_location(Location::DataProtectionKeychain);
@@ -75,6 +94,8 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
             .class(ItemClass::key())
             // We want access to the private key
             .key_class(KeyClass::private())
+            // Limit to 1 output key
+            .limit(1)
             // Search the keychain
             .search()
             .map_err(|_| {
@@ -92,13 +113,13 @@ impl SecureEnvironmentOps<Key> for SecureEnvironment {
         match result {
             SearchResult::Ref(r) => match r {
                 security_framework::item::Reference::Key(k) => Ok(Key(k.to_owned())),
-                _ => Err(SecureEnvError::UnableToGetKeyPairById(format!(
-                    "Found Reference, but not of key instance",
-                ))),
+                _ => Err(SecureEnvError::UnableToGetKeyPairById(
+                    "Found Reference, but not of key instance".to_owned(),
+                )),
             },
-            _ => Err(SecureEnvError::UnableToGetKeyPairById(format!(
-                "Did not find search reference",
-            ))),
+            _ => Err(SecureEnvError::UnableToGetKeyPairById(
+                "Did not find search reference".to_owned(),
+            )),
         }
     }
 }
@@ -178,6 +199,12 @@ impl KeyOps for Key {
         Ok(public_key)
     }
 
+    /**
+     *
+     * Signing is an operation that requires authentication. Make sure to manually authenticate
+     * before calling this operation
+     *
+     */
     fn sign(&self, msg: &[u8]) -> SecureEnvResult<Vec<u8>> {
         // Sign the message with the `der` format
         let der_sig = self
