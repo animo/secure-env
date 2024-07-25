@@ -44,7 +44,7 @@ pub fn run_tests() {
 
 fn test_generate_keypair() {
     let id = Uuid::new_v4();
-    let key = SecureEnvironment::generate_keypair(id).unwrap();
+    let key = SecureEnvironment::generate_keypair(id, false).unwrap();
 
     assert!((addr_of!(key) != null()));
 }
@@ -52,7 +52,7 @@ fn test_generate_keypair() {
 fn test_get_keypair_by_id() {
     let id = Uuid::new_v4();
 
-    SecureEnvironment::generate_keypair(id).unwrap();
+    SecureEnvironment::generate_keypair(id, false).unwrap();
     let key = SecureEnvironment::get_keypair_by_id(id).unwrap();
 
     assert!((addr_of!(key) != null()));
@@ -60,7 +60,7 @@ fn test_get_keypair_by_id() {
 
 fn test_get_public_key() {
     let id = Uuid::new_v4();
-    let key = SecureEnvironment::generate_keypair(id).unwrap();
+    let key = SecureEnvironment::generate_keypair(id, false).unwrap();
 
     let public_key = key.get_public_key().unwrap();
 
@@ -70,7 +70,7 @@ fn test_get_public_key() {
 fn test_get_by_id_and_get_public_key() {
     let id = Uuid::new_v4();
 
-    SecureEnvironment::generate_keypair(id).unwrap();
+    SecureEnvironment::generate_keypair(id, false).unwrap();
     let key = SecureEnvironment::get_keypair_by_id(id).unwrap();
 
     let public_key = key.get_public_key().unwrap();
@@ -81,7 +81,7 @@ fn test_get_by_id_and_get_public_key() {
 
 fn test_generate_and_sign() {
     let id = Uuid::new_v4();
-    let key = SecureEnvironment::generate_keypair(id).unwrap();
+    let key = SecureEnvironment::generate_keypair(id,false).unwrap();
     let msg  = b"Hello World!";
 
     let signature = key.sign(msg).unwrap();
@@ -92,7 +92,7 @@ fn test_generate_and_sign() {
 
 fn test_get_by_id_and_sign() {
     let id = Uuid::new_v4();
-    SecureEnvironment::generate_keypair(id).unwrap();
+    SecureEnvironment::generate_keypair(id,false).unwrap();
     let key = SecureEnvironment::get_keypair_by_id(id).unwrap();
     let msg  = b"Hello World!";
 
@@ -104,7 +104,7 @@ fn test_get_by_id_and_sign() {
 
 fn test_generate_and_sign_and_verify_with_askar() {
     let id = Uuid::new_v4();
-    let key = SecureEnvironment::generate_keypair(id).unwrap();
+    let key = SecureEnvironment::generate_keypair(id,false).unwrap();
     let public_key = key.get_public_key().unwrap();
     let msg  = b"Hello World!";
 
@@ -120,7 +120,7 @@ fn test_generate_and_sign_and_verify_with_askar() {
 
 fn test_get_by_id_and_sign_and_verify_with_askar() {
     let id = Uuid::new_v4();
-    SecureEnvironment::generate_keypair(id).unwrap();
+    SecureEnvironment::generate_keypair(id,false).unwrap();
     let key = SecureEnvironment::get_keypair_by_id(id).unwrap();
     let public_key = key.get_public_key().unwrap();
     let msg  = b"Hello World!";

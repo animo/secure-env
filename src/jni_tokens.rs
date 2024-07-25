@@ -21,6 +21,9 @@ pub static PACKAGE_MANAGER_HAS_SYSTEM_FEATURE_SIG: &str = "(Ljava/lang/String;I)
 
 pub static KEY_PROPERTIES_CLS: &str = "android/security/keystore/KeyProperties";
 
+pub static KEY_PROPERTIES_AUTH_BIOMETRIC_STRONG: &str = "AUTH_BIOMETRIC_STRONG";
+pub static KEY_PROPERTIES_AUTH_BIOMETRIC_STRONG_SIG: &str = "I";
+
 pub static KEY_PROPERTIES_PURPOSE_SIGN: &str = "PURPOSE_SIGN";
 pub static KEY_PROPERTIES_PURPOSE_SIGN_SIG: &str = "I";
 
@@ -41,6 +44,21 @@ pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_DIGESTS_SIG: &str =
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_KEY_SIZE: &str = "setKeySize";
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_KEY_SIZE_SIG: &str =
     "(I)Landroid/security/keystore/KeyGenParameterSpec$Builder;";
+
+pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_AUTHENTICATION_REQUIRED: &str =
+    "setUserAuthenticationRequired";
+pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_AUTHENTICATION_REQUIRED_SIG: &str =
+    "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;";
+
+pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_INVALIDATED_BY_BIOMETRIC_ENROLLMENT: &str =
+    "setInvalidatedByBiometricEnrollment";
+pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_INVALIDATED_BY_BIOMETRIC_ENROLLMENT_SIG: &str =
+    "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;";
+
+pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_AUTHENTICATION_PARAMETERS: &str =
+    "setUserAuthenticationParameters";
+pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_USER_AUTHENTICATION_PARAMETERS_SIG: &str =
+    "(II)Landroid/security/keystore/KeyGenParameterSpec$Builder;";
 
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED: &str = "setIsStrongBoxBacked";
 pub static KEY_GEN_PARAMETER_SPEC_BUILDER_SET_IS_STRONG_BOX_BACKED_SIG: &str =

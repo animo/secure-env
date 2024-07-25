@@ -19,7 +19,7 @@ else
 fi
 
 if [ -n "$HAS_ERROR" ]; then
-  cat $LOG
+  echo $LOG
   echo "::error:: Rust panicked! Tests failed. Logs will be uploaded"
   exit 1
 else
